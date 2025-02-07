@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 import Category from '../models/categories.js'; 
 import Income from '../models/income.js';
 import moment from 'moment';
-import Redis from 'ioredis';
+
 dotenv.config();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
@@ -84,7 +84,7 @@ export const processTextWithGemini = async (req, res) => {
         res.status(500).json({ status: 'error', message: error.message });
     }
 };
-const redis = new Redis();
+const userSessions = {}; // Lưu thông tin tạm thời của người dùng
 
 export const handleIncomeCommand = async (req, res) => {
     try {
@@ -93,68 +93,101 @@ export const handleIncomeCommand = async (req, res) => {
             return res.status(400).json({ status: 'error', message: 'Thiếu thông tin tin nhắn hoặc userId' });
         }
 
-        const userMessage = message.trim().toLowerCase();
+        const userMessage = message.trim().toLowerCase(); // Chuyển về chữ thường và loại bỏ khoảng trắng
 
-        let sessionData = await redis.get(`session:${userId}`);
-        let session = sessionData ? JSON.parse(sessionData) : { amount: null, description: null, date: null, confirmed: false };
+        // Khởi tạo session nếu chưa có
+        if (!userSessions[userId]) {
+            userSessions[userId] = { amount: null, description: null, date: null, confirmed: false };
+        }
+        const session = userSessions[userId];
+
+        // Dùng AI phân tích tin nhắn để trích xuất dữ liệu
         const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-        const prompt = `Hãy phân tích tin nhắn và trả về JSON với cấu trúc:
+        const prompt = `
+        Bạn là một trợ lý tài chính. Hãy phân tích tin nhắn và trả về JSON với cấu trúc:
         {
           "amount": <số tiền dạng số>,
           "description": "<mô tả>",
           "date": "<yyyy-mm-dd hoặc yyyy-mm hoặc yyyy>"
         }  
-        Tin nhắn: "${message}"`;
-
+        Nếu thiếu dữ liệu, hãy để giá trị là null.
+        Tin nhắn: "${message}"
+        `;
         const result = await model.generateContent([prompt]);
         const response = await result.response;
         let rawText = response.text().trim();
-        let parsedData;
 
+        let parsedData;
         try {
             parsedData = JSON.parse(rawText);
-        } catch (error) {
+        } catch {
             return res.json({ status: 'pending', message: "Không thể phân tích tin nhắn. Vui lòng nhập lại." });
         }
 
+        // Chuẩn hóa dữ liệu đầu vào
         if (parsedData.amount) session.amount = Number(parsedData.amount);
         if (parsedData.description) session.description = parsedData.description.trim();
         if (parsedData.date) session.date = parsedData.date.trim();
 
-        if (session.date && !moment(session.date, 'YYYY-MM-DD', true).isValid()) {
-            return res.json({ status: 'error', message: "Ngày không hợp lệ. Vui lòng nhập đúng định dạng YYYY-MM-DD." });
+        // Xử lý nhập thiếu ngày/tháng/năm và chuyển sang ISO 8601
+        if (session.date) {
+            if (/^\d{4}-\d{2}$/.test(session.date)) {  // Nếu chỉ nhập tháng-năm
+                return res.json({ 
+                    status: 'pending', 
+                    message: `Bạn đã nhập tháng ${session.date.split('-')[1]}/${session.date.split('-')[0]}. Hãy nhập thêm ngày cụ thể (VD: 15/${session.date.split('-')[1]}/${session.date.split('-')[0]}).` 
+                });
+            }
+            if (/^\d{4}$/.test(session.date)) {  // Nếu chỉ nhập năm
+                return res.json({ 
+                    status: 'pending', 
+                    message: `Bạn đã nhập năm ${session.date}. Hãy nhập thêm tháng & ngày cụ thể (VD: 01/06/${session.date}).` 
+                });
+            }
+
+            // Kiểm tra nếu ngày có đúng định dạng ISO 8601 (YYYY-MM-DD)
+            if (!moment(session.date, 'YYYY-MM-DD', true).isValid()) {
+                return res.json({ status: 'error', message: "Ngày không hợp lệ. Vui lòng nhập đúng định dạng YYYY-MM-DD." });
+            }
         }
 
+        // Kiểm tra thông tin còn thiếu
         let missingFields = [];
         if (!session.amount) missingFields.push("số tiền");
         if (!session.description) missingFields.push("mô tả");
         if (!session.date) missingFields.push("ngày");
 
         if (missingFields.length > 0) {
-            return res.json({ status: 'pending', message: `Bạn chưa nhập đủ thông tin. Hãy bổ sung: ${missingFields.join(", ")}.` });
+            return res.json({
+                status: 'pending',
+                message: `Bạn chưa nhập đủ thông tin. Hãy bổ sung: ${missingFields.join(", ")}.`,
+            });
         }
 
-        // Lưu session vào Redis với thời gian tồn tại 10 phút
-        await redis.setex(`session:${userId}`, 600, JSON.stringify(session));
-
+        // Hiển thị bản xác nhận
         if (!session.confirmed) {
             session.confirmed = true;
-            await redis.setex(`session:${userId}`, 600, JSON.stringify(session));
             return res.json({ 
                 status: 'pending', 
                 message: `Xác nhận lưu thu nhập: ${session.amount.toLocaleString()} VND - "${session.description}" vào ngày ${session.date}? (Có / Không)`
             });
         }
 
-        if (session.confirmed && ["có", "yes"].includes(userMessage)) {
-            const newIncome = new Income({ userId, amount: session.amount, description: session.description, date: session.date });
+        // Nếu người dùng xác nhận "Có" → Lưu vào MongoDB
+        if (session.confirmed && ["có", "yes","CÓ","CO","co","Co","cO"].includes(userMessage)) {
+            const newIncome = new Income({ 
+                userId, 
+                amount: session.amount, 
+                description: session.description, 
+                date: session.date // Định dạng chuẩn ISO 8601
+            });
             await newIncome.save();
-            await redis.del(`session:${userId}`); // Xóa session khi lưu xong
+            delete userSessions[userId];
             return res.json({ status: 'success', message: "Thu nhập đã được lưu! 🎉", data: newIncome });
         }
 
+        // Nếu người dùng hủy lưu
         if (session.confirmed && ["không", "no"].includes(userMessage)) {
-            await redis.del(`session:${userId}`); // Xóa session nếu người dùng hủy
+            delete userSessions[userId];
             return res.json({ status: 'success', message: "Đã hủy lưu thu nhập." });
         }
 
