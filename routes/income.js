@@ -5,6 +5,7 @@ import {
   getIncomeByUserId,
   updateIncomeById,
   deleteIncomeById,
+  getUserIncomeChart
   
 } from '../controllers/income.js';
 
@@ -15,5 +16,5 @@ router.get('/', getAllIncomes);
 router.get('/:userId', getIncomeByUserId);
 router.put('/:id', updateIncomeById);
 router.delete('/:id', deleteIncomeById);
-
+router.get('/incomes-chart/:userId', getUserIncomeChart);
 export default router;

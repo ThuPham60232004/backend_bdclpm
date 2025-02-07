@@ -60,3 +60,33 @@ export const deleteIncomeById = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+export const getUserIncomeChart = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: 'Invalid user ID' });
+    }
+
+    const incomes = await Income.aggregate([
+      { $match: { userId: new mongoose.Types.ObjectId(userId) } },
+      {
+        $group: {
+          _id: { $month: '$date' },
+          totalAmount: { $sum: '$amount' }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
+    const formattedData = incomes.map(entry => ({
+      month: entry._id,
+      totalAmount: entry.totalAmount
+    }));
+
+    res.status(200).json(formattedData);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
