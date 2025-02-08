@@ -8,6 +8,7 @@ import {
   getExpensesByCategory,
   getUserExpenseChart,
   getFilteredExpenseChart,
+  statistics
 } from '../controllers/expenses.js';
 
 const router = express.Router();
@@ -20,4 +21,5 @@ router.delete('/:id', deleteExpenseById);
 router.get('/category/:categoryId', getExpensesByCategory);
 router.get('/expenses-chart/:userId', getUserExpenseChart);
 router.get('/expenses-time/:userId', getFilteredExpenseChart);
+router.get('/statistics/:userId', statistics);
 export default router;

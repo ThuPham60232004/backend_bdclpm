@@ -1,5 +1,29 @@
 import Expense from '../models/expenses.js';
 import mongoose from 'mongoose';
+import Income from '../models/income.js';
+export const statistics =async (req, res) => {
+  try {
+      const { userId } = req.params;
+
+      const totalIncome = await Income.aggregate([
+          { $match: { userId: new mongoose.Types.ObjectId(userId) } },
+          { $group: { _id: null, total: { $sum: '$amount' } } }
+      ]);
+      const totalExpense = await Expense.aggregate([
+          { $match: { userId: new mongoose.Types.ObjectId(userId) } },
+          { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+      ]);
+
+      const income = totalIncome.length > 0 ? totalIncome[0].total : 0;
+      const expense = totalExpense.length > 0 ? totalExpense[0].total : 0;
+      const balance = income - expense;
+
+      res.json({ income, expense, balance });
+  } catch (error) {
+      res.status(500).json({ error: 'Lỗi khi lấy dữ liệu thống kê' });
+  }
+}
+
 export const createExpense = async (req, res) => {
   try {
     const expense = new Expense(req.body);
