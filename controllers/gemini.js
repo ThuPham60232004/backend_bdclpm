@@ -143,6 +143,7 @@ export const handleIncomeCommand = async (req, res) => {
         try {
             parsedData = JSON.parse(rawText);  
         } catch (error) {
+            console.error("Lỗi phân tích JSON:", response);
             console.error("Lỗi phân tích JSON:", error);
             console.error("Dữ liệu nhận được:", rawText); 
             return res.json({ status: 'pending', message: "Không thể phân tích tin nhắn. Vui lòng nhập lại." });
@@ -190,7 +191,7 @@ export const handleIncomeCommand = async (req, res) => {
             });
         }
         
-        if (session.confirmed && ["xác nhận", "confirm", "yes"].map(keyword => keyword.toLowerCase()).includes(userMessage.trim().toLowerCase())) {
+        if (session.confirmed && ["xác nhận", "confirm", "yes", "Xác nhận"].map(keyword => keyword.toLowerCase()).includes(userMessage.trim().toLowerCase())) {
             const newIncome = new Income({ 
                 userId, 
                 amount: session.amount, 
