@@ -138,7 +138,7 @@ export const handleIncomeCommand = async (req, res) => {
         console.log("Mô hình AI trả về:", rawText);  
 
         rawText = rawText.replace(/```json|```/g, '').trim();
-
+        rawText = rawText.replace(/^\*\*Dữ liệu JSON:\s*/g, '').trim();
         let parsedData;
         try {
             parsedData = JSON.parse(rawText);  
