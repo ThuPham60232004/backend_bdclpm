@@ -84,7 +84,7 @@ export const processTextWithGemini = async (req, res) => {
         res.status(500).json({ status: 'error', message: error.message });
     }
 };
-const userSessions = {}; // Lưu thông tin tạm thời của người dùng
+const userSessions = {}; 
 
 export const handleIncomeCommand = async (req, res) => {
     try {
@@ -93,7 +93,14 @@ export const handleIncomeCommand = async (req, res) => {
             return res.status(400).json({ status: 'error', message: 'Thiếu thông tin tin nhắn hoặc userId' });
         }
 
-        const userMessage = message.trim().toLowerCase(); // Chuyển về chữ thường và loại bỏ khoảng trắng
+        const userMessage = message.trim().toLowerCase(); 
+        const greetings = ["hello", "hi", "xin chào", "chào"];
+        if (greetings.includes(userMessage)) {
+            return res.json({
+                status: 'success',
+                message: 'Chào bạn! Bạn có thể cung cấp thêm thông tin về chi tiêu, đầu tư, hoặc các câu hỏi tài chính khác không?'
+            });
+        }
         if (!userSessions[userId]) {
             userSessions[userId] = { amount: null, description: null, date: null, confirmed: false };
         }
