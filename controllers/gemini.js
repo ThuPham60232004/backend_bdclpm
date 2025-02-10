@@ -101,54 +101,21 @@ export const handleIncomeCommand = async (req, res) => {
         const model = genAI.getGenerativeModel({ model: "gemini-pro" });
         
         const responses = [
-            {
-                keywords: ["chi tiêu", "đầu tư", "spending", "investment"],
-                message: "Đây là một câu hỏi về tài chính. Bạn có thể cung cấp thêm thông tin để tôi hỗ trợ chi tiết hơn về chi tiêu hoặc đầu tư, ví dụ như bạn muốn tiết kiệm hay đầu tư vào lĩnh vực nào?"
-            },
-            {
-                keywords: ["chào", "giới thiệu", "hello", "introduce","hi","helo","halo","xin chào"],
-                message: "Chào bạn! Tôi là trợ lý tài chính của bạn. Tôi có thể giúp bạn quản lý chi tiêu, đầu tư, hoặc giải thích các khái niệm tài chính. Bạn cần giúp gì ngay bây giờ?"
-            },
-            {
-                keywords: ["khái niệm", "định nghĩa", "concept", "definition"],
-                message: "Bạn muốn tôi giải thích khái niệm nào trong tài chính? Ví dụ như tiết kiệm, đầu tư, tỷ lệ lạm phát hay một khái niệm khác. Hãy cho tôi biết!"
-            },
-            {
-                keywords: ["lãi suất", "vay mượn", "interest rate", "loan"],
-                message: "Lãi suất là một phần quan trọng trong các giao dịch tài chính. Bạn cần giải thích về lãi suất vay mượn hay lãi suất tiết kiệm?"
-            },
-            {
-                keywords: ["tài sản", "nợ", "vốn", "chứng khoán", "assets", "debt", "capital", "stocks"],
-                message: "Tài sản và nợ là các yếu tố quan trọng trong việc quản lý tài chính cá nhân. Bạn cần tìm hiểu về cách phân biệt tài sản và nợ hoặc cách đầu tư vào chứng khoán?"
-            },
-            {
-                keywords: ["tiết kiệm", "quỹ hưu trí", "savings", "retirement fund"],
-                message: "Tiết kiệm là một cách tốt để đảm bảo tài chính trong tương lai. Bạn muốn tìm hiểu về cách lập kế hoạch tiết kiệm hoặc tạo một quỹ hưu trí?"
-            },
-            {
-                keywords: ["chứng khoán", "cổ phiếu", "quỹ đầu tư", "securities", "stocks", "investment funds"],
-                message: "Chứng khoán và cổ phiếu là những lựa chọn đầu tư phổ biến. Bạn có muốn tôi giải thích cách thức hoạt động của thị trường chứng khoán và các quỹ đầu tư?"
-            },
-            {
-                keywords: ["ngân sách", "chi phí", "tiết kiệm", "budget", "expenses", "savings"],
-                message: "Lập ngân sách và quản lý chi phí là những kỹ năng quan trọng trong tài chính cá nhân. Bạn muốn tôi giúp bạn tạo một ngân sách tiết kiệm?"
-            },
-            {
-                keywords: ["kế hoạch tài chính", "quản lý tài chính", "financial plan", "financial management"],
-                message: "Kế hoạch tài chính giúp bạn xác định mục tiêu và lộ trình tài chính. Bạn muốn tôi giúp bạn xây dựng một kế hoạch tài chính cá nhân?"
-            },
-            {
-                keywords: ["đầu tư bất động sản", "vàng", "crypto", "real estate investment", "gold", "cryptocurrency"],
-                message: "Đầu tư vào bất động sản, vàng hay crypto (tiền điện tử) là những lựa chọn đầu tư hấp dẫn. Bạn muốn tìm hiểu về một trong những loại đầu tư này?"
-            }
+            { keywords: ["chi tiêu", "đầu tư", "spending", "investment"], message: "Đây là một câu hỏi về tài chính. Bạn có thể cung cấp thêm thông tin để tôi hỗ trợ chi tiết hơn về chi tiêu hoặc đầu tư, ví dụ như bạn muốn tiết kiệm hay đầu tư vào lĩnh vực nào?" },
+            { keywords: ["chào", "giới thiệu", "hello", "introduce","hi","helo","halo","xin chào"], message: "Chào bạn! Tôi là trợ lý tài chính của bạn. Tôi có thể giúp bạn quản lý chi tiêu, đầu tư, hoặc giải thích các khái niệm tài chính. Bạn cần giúp gì ngay bây giờ?" },
+            { keywords: ["khái niệm", "định nghĩa", "concept", "definition"], message: "Bạn muốn tôi giải thích khái niệm nào trong tài chính? Ví dụ như tiết kiệm, đầu tư, tỷ lệ lạm phát hay một khái niệm khác. Hãy cho tôi biết!" },
+            { keywords: ["lãi suất", "vay mượn", "interest rate", "loan"], message: "Lãi suất là một phần quan trọng trong các giao dịch tài chính. Bạn cần giải thích về lãi suất vay mượn hay lãi suất tiết kiệm?" },
+            { keywords: ["tài sản", "nợ", "vốn", "chứng khoán", "assets", "debt", "capital", "stocks"], message: "Tài sản và nợ là các yếu tố quan trọng trong việc quản lý tài chính cá nhân. Bạn cần tìm hiểu về cách phân biệt tài sản và nợ hoặc cách đầu tư vào chứng khoán?" },
+            { keywords: ["tiết kiệm", "quỹ hưu trí", "savings", "retirement fund"], message: "Tiết kiệm là một cách tốt để đảm bảo tài chính trong tương lai. Bạn muốn tìm hiểu về cách lập kế hoạch tiết kiệm hoặc tạo một quỹ hưu trí?" },
+            { keywords: ["chứng khoán", "cổ phiếu", "quỹ đầu tư", "securities", "stocks", "investment funds"], message: "Chứng khoán và cổ phiếu là những lựa chọn đầu tư phổ biến. Bạn có muốn tôi giải thích cách thức hoạt động của thị trường chứng khoán và các quỹ đầu tư?" },
+            { keywords: ["ngân sách", "chi phí", "tiết kiệm", "budget", "expenses", "savings"], message: "Lập ngân sách và quản lý chi phí là những kỹ năng quan trọng trong tài chính cá nhân. Bạn muốn tôi giúp bạn tạo một ngân sách tiết kiệm?" },
+            { keywords: ["kế hoạch tài chính", "quản lý tài chính", "financial plan", "financial management"], message: "Kế hoạch tài chính giúp bạn xác định mục tiêu và lộ trình tài chính. Bạn muốn tôi giúp bạn xây dựng một kế hoạch tài chính cá nhân?" },
+            { keywords: ["đầu tư bất động sản", "vàng", "crypto", "real estate investment", "gold", "cryptocurrency"], message: "Đầu tư vào bất động sản, vàng hay crypto (tiền điện tử) là những lựa chọn đầu tư hấp dẫn. Bạn muốn tìm hiểu về một trong những loại đầu tư này?" }
         ];
 
         for (let response of responses) {
             if (response.keywords.some(keyword => userMessage.includes(keyword))) {
-                return res.json({
-                    status: 'success',
-                    message: response.message
-                });
+                return res.json({ status: 'success', message: response.message });
             }
         }
 
@@ -168,14 +135,16 @@ export const handleIncomeCommand = async (req, res) => {
         const response = await result.response;
         let rawText = response.text().trim();
 
-        rawText = rawText.replace(/```json|```/g, '').trim();  
         console.log("Mô hình AI trả về:", rawText);  
+
+        rawText = rawText.replace(/```json|```/g, '').trim();
 
         let parsedData;
         try {
             parsedData = JSON.parse(rawText);  
         } catch (error) {
             console.error("Lỗi phân tích JSON:", error);
+            console.error("Dữ liệu nhận được:", rawText); 
             return res.json({ status: 'pending', message: "Không thể phân tích tin nhắn. Vui lòng nhập lại." });
         }
 
@@ -217,11 +186,11 @@ export const handleIncomeCommand = async (req, res) => {
             session.confirmed = true;
             return res.json({ 
                 status: 'pending', 
-                message: `Xác nhận lưu thu nhập: ${session.amount.toLocaleString()} VND - "${session.description}" vào ngày ${session.date}? (Có / Không)` 
+                message: `Xác nhận lưu thu nhập: ${session.amount.toLocaleString()} VND - "${session.description}" vào ngày ${session.date}? (Xác nhận / Hủy bỏ)` 
             });
         }
-
-        if (session.confirmed && ["có", "yes", "CÓ", "CO", "co", "Co", "cO"].includes(userMessage)) {
+        
+        if (session.confirmed && ["xác nhận", "confirm", "yes"].map(keyword => keyword.toLowerCase()).includes(userMessage.trim().toLowerCase())) {
             const newIncome = new Income({ 
                 userId, 
                 amount: session.amount, 
@@ -232,14 +201,14 @@ export const handleIncomeCommand = async (req, res) => {
             delete userSessions[userId];
             return res.json({ status: 'success', message: "Thu nhập đã được lưu! 🎉", data: newIncome });
         }
-
-        if (session.confirmed && ["không", "no"].includes(userMessage)) {
+        
+        if (session.confirmed && ["hủy bỏ", "cancel", "no"].includes(userMessage.trim().toLowerCase())) {
             delete userSessions[userId];
             return res.json({ status: 'success', message: "Đã hủy lưu thu nhập." });
         }
-
+        
         return res.json({ status: 'pending', message: "Hãy xác nhận hoặc nhập thêm thông tin." });
-
+        
     } catch (error) {
         console.error("Lỗi hệ thống:", error);
         res.status(500).json({ status: 'error', message: error.message });
