@@ -130,25 +130,34 @@ export const handleIncomeCommand = async (req, res) => {
         Tin nhắn: "${message}"
         Bên cạnh đó bạn có thể trả lời các câu hỏi liên quan đến tài chính như chi tiêu, đầu tư, hoặc những câu hỏi giao tiếp thông thường như chào hỏi, giới thiệu bản thân, hoặc giải thích các khái niệm.
         `;
-
         const result = await model.generateContent([prompt]);
         const response = await result.response;
         let rawText = response.text().trim();
-
+        
         console.log("Mô hình AI trả về:", rawText);  
-
+        
         rawText = rawText.replace(/```json|```/g, '').trim();
         rawText = rawText.replace(/^\*\*Dữ liệu JSON:\s*/g, '').trim();
+        
         let parsedData;
         try {
-            parsedData = JSON.parse(rawText);  
+            // Kiểm tra xem dữ liệu có phải là JSON hợp lệ không
+            if (rawText.startsWith("{") && rawText.endsWith("}")) {
+                parsedData = JSON.parse(rawText);
+            } else {
+                throw new Error("Dữ liệu trả về không phải JSON hợp lệ");
+            }
         } catch (error) {
-            console.error("Lỗi phân tích JSON:", response);
             console.error("Lỗi phân tích JSON:", error);
             console.error("Dữ liệu nhận được:", rawText); 
             return res.json({ status: 'pending', message: "Không thể phân tích tin nhắn. Vui lòng nhập lại." });
         }
-
+        
+        // Tiến hành xử lý như bình thường nếu dữ liệu hợp lệ
+        if (parsedData.amount) session.amount = Number(parsedData.amount);
+        if (parsedData.description) session.description = parsedData.description.trim();
+        if (parsedData.date) session.date = parsedData.date.trim();
+        
         if (parsedData.amount) session.amount = Number(parsedData.amount);
         if (parsedData.description) session.description = parsedData.description.trim();
         if (parsedData.date) session.date = parsedData.date.trim();
