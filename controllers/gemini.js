@@ -99,7 +99,7 @@ export const handleIncomeCommand = async (req, res) => {
         }
         const session = userSessions[userId];
         const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-        
+
         const responses = [
             { keywords: ["chi tiêu", "đầu tư", "spending", "investment"], message: "Đây là một câu hỏi về tài chính. Bạn có thể cung cấp thêm thông tin để tôi hỗ trợ chi tiết hơn về chi tiêu hoặc đầu tư, ví dụ như bạn muốn tiết kiệm hay đầu tư vào lĩnh vực nào?" },
             { keywords: ["chào", "giới thiệu", "hello", "introduce","hi","helo","halo","xin chào"], message: "Chào bạn! Tôi là trợ lý tài chính của bạn. Tôi có thể giúp bạn quản lý chi tiêu, đầu tư, hoặc giải thích các khái niệm tài chính. Bạn cần giúp gì ngay bây giờ?" },
@@ -113,6 +113,7 @@ export const handleIncomeCommand = async (req, res) => {
             { keywords: ["đầu tư bất động sản", "vàng", "crypto", "real estate investment", "gold", "cryptocurrency"], message: "Đầu tư vào bất động sản, vàng hay crypto (tiền điện tử) là những lựa chọn đầu tư hấp dẫn. Bạn muốn tìm hiểu về một trong những loại đầu tư này?" }
         ];
 
+        // Kiểm tra nếu có từ khóa liên quan đến các câu hỏi tài chính
         for (let response of responses) {
             if (response.keywords.some(keyword => userMessage.includes(keyword))) {
                 return res.json({ status: 'success', message: response.message });
@@ -130,38 +131,29 @@ export const handleIncomeCommand = async (req, res) => {
         Tin nhắn: "${message}"
         Bên cạnh đó bạn có thể trả lời các câu hỏi liên quan đến tài chính như chi tiêu, đầu tư, hoặc những câu hỏi giao tiếp thông thường như chào hỏi, giới thiệu bản thân, hoặc giải thích các khái niệm.
         `;
+
         const result = await model.generateContent([prompt]);
         const response = await result.response;
         let rawText = response.text().trim();
-        
+
         console.log("Mô hình AI trả về:", rawText);  
-        
+
         rawText = rawText.replace(/```json|```/g, '').trim();
         rawText = rawText.replace(/^\*\*Dữ liệu JSON:\s*/g, '').trim();
-        
         let parsedData;
         try {
-            // Kiểm tra xem dữ liệu có phải là JSON hợp lệ không
-            if (rawText.startsWith("{") && rawText.endsWith("}")) {
-                parsedData = JSON.parse(rawText);
-            } else {
-                throw new Error("Dữ liệu trả về không phải JSON hợp lệ");
-            }
+            parsedData = JSON.parse(rawText);  
         } catch (error) {
             console.error("Lỗi phân tích JSON:", error);
             console.error("Dữ liệu nhận được:", rawText); 
             return res.json({ status: 'pending', message: "Không thể phân tích tin nhắn. Vui lòng nhập lại." });
         }
-        
-        // Tiến hành xử lý như bình thường nếu dữ liệu hợp lệ
-        if (parsedData.amount) session.amount = Number(parsedData.amount);
-        if (parsedData.description) session.description = parsedData.description.trim();
-        if (parsedData.date) session.date = parsedData.date.trim();
-        
+
         if (parsedData.amount) session.amount = Number(parsedData.amount);
         if (parsedData.description) session.description = parsedData.description.trim();
         if (parsedData.date) session.date = parsedData.date.trim();
 
+        // Kiểm tra tính hợp lệ của ngày tháng
         if (session.date) {
             if (/^\d{4}-\d{2}$/.test(session.date)) { 
                 return res.json({ 
@@ -180,6 +172,7 @@ export const handleIncomeCommand = async (req, res) => {
             }
         }
 
+        // Kiểm tra thiếu thông tin
         let missingFields = [];
         if (!session.amount) missingFields.push("số tiền");
         if (!session.description) missingFields.push("mô tả");
@@ -192,6 +185,7 @@ export const handleIncomeCommand = async (req, res) => {
             });
         }
 
+        // Xác nhận lưu thu nhập
         if (!session.confirmed) {
             session.confirmed = true;
             return res.json({ 
@@ -200,7 +194,8 @@ export const handleIncomeCommand = async (req, res) => {
             });
         }
         
-        if (session.confirmed && ["xác nhận", "confirm", "yes", "Xác nhận"].map(keyword => keyword.toLowerCase()).includes(userMessage.trim().toLowerCase())) {
+        // Xử lý xác nhận và hủy bỏ
+        if (session.confirmed && ["xác nhận", "confirm", "yes", "Xác nhận"].includes(userMessage)) {
             const newIncome = new Income({ 
                 userId, 
                 amount: session.amount, 
@@ -212,13 +207,13 @@ export const handleIncomeCommand = async (req, res) => {
             return res.json({ status: 'success', message: "Thu nhập đã được lưu! 🎉", data: newIncome });
         }
         
-        if (session.confirmed && ["hủy bỏ", "cancel", "no"].includes(userMessage.trim().toLowerCase())) {
+        if (session.confirmed && ["hủy bỏ", "cancel", "no"].includes(userMessage)) {
             delete userSessions[userId];
             return res.json({ status: 'success', message: "Đã hủy lưu thu nhập." });
         }
         
         return res.json({ status: 'pending', message: "Hãy xác nhận hoặc nhập thêm thông tin." });
-        
+
     } catch (error) {
         console.error("Lỗi hệ thống:", error);
         res.status(500).json({ status: 'error', message: error.message });
