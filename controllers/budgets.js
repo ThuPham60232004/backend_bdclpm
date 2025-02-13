@@ -65,18 +65,23 @@ export const checkBudgetLimit = async (req, res) => {
     let totalBudget = 0;
     let totalExpenses = 0;
     let expensesList = [];
+    let startBudgetDate = budgets[0].startBudgetDate;
+    let endBudgetDate = budgets[0].endBudgetDate;
 
     for (const budget of budgets) {
-      const startBudgetDate = new Date(budget.startBudgetDate).toISOString();
-      const endBudgetDate = new Date(budget.endBudgetDate).toISOString();
+      const start = new Date(budget.startBudgetDate);
+      const end = new Date(budget.endBudgetDate);
 
-      // Lấy tất cả chi tiêu trong khoảng thời gian của ngân sách
+      // Cập nhật ngày bắt đầu và kết thúc cho phản hồi API
+      if (start < startBudgetDate) startBudgetDate = start;
+      if (end > endBudgetDate) endBudgetDate = end;
+
+      // Lấy chi tiêu trong khoảng thời gian của ngân sách
       const expenses = await Expense.find({
         userId,
-        date: { $gte: startBudgetDate, $lte: endBudgetDate },
+        date: { $gte: start, $lte: end },
       });
 
-      // Cộng dồn ngân sách và tổng chi tiêu
       totalBudget += budget.amount;
       totalExpenses += expenses.reduce((sum, expense) => sum + (expense.totalAmount || 0), 0);
       expensesList.push(...expenses);
@@ -86,6 +91,8 @@ export const checkBudgetLimit = async (req, res) => {
       message: totalExpenses > totalBudget ? 'Tổng chi tiêu đã vượt quá ngân sách' : 'Chi tiêu trong giới hạn',
       totalExpenses,
       totalBudget,
+      startBudgetDate: startBudgetDate.toISOString(),
+      endBudgetDate: endBudgetDate.toISOString(),
       expenses: expensesList,
     };
 
@@ -95,3 +102,4 @@ export const checkBudgetLimit = async (req, res) => {
     res.status(500).json({ message: 'Lỗi máy chủ', error: error.message });
   }
 };
+
