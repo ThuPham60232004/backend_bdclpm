@@ -53,33 +53,40 @@ export const deleteBudgetById = async (req, res) => {
 };
 export const checkBudgetLimit = async (req, res) => {
   try {
-    const { userId, budgetId } = req.params;
+    const { userId } = req.params;
 
-    // Tìm ngân sách theo userId và budgetId
-    const budget = await Budget.findOne({ _id: budgetId, userId });
-    if (!budget) {
+    // Lấy tất cả ngân sách của user
+    const budgets = await Budget.find({ userId });
+
+    if (!budgets.length) {
       return res.status(404).json({ message: 'Không tìm thấy ngân sách' });
     }
 
-    const startBudgetDate = new Date(budget.startBudgetDate).toISOString();
-    const endBudgetDate = new Date(budget.endBudgetDate).toISOString();
+    let totalBudget = 0;
+    let totalExpenses = 0;
+    let expensesList = [];
 
-    // Lấy danh sách chi tiêu trong khoảng thời gian ngân sách
-    const expenses = await Expense.find({
-      userId,
-      budgetId, // Lọc theo budgetId để lấy đúng chi tiêu cho ngân sách này
-      date: { $gte: startBudgetDate, $lte: endBudgetDate },
-    });
+    for (const budget of budgets) {
+      const startBudgetDate = new Date(budget.startBudgetDate).toISOString();
+      const endBudgetDate = new Date(budget.endBudgetDate).toISOString();
 
-    const totalExpenses = expenses.reduce((sum, expense) => sum + (expense.totalAmount || 0), 0);
+      // Lấy tất cả chi tiêu trong khoảng thời gian của ngân sách
+      const expenses = await Expense.find({
+        userId,
+        date: { $gte: startBudgetDate, $lte: endBudgetDate },
+      });
+
+      // Cộng dồn ngân sách và tổng chi tiêu
+      totalBudget += budget.amount;
+      totalExpenses += expenses.reduce((sum, expense) => sum + (expense.totalAmount || 0), 0);
+      expensesList.push(...expenses);
+    }
 
     const response = {
-      message: totalExpenses > budget.amount ? 'Tổng chi tiêu đã vượt quá ngân sách' : 'Chi tiêu trong giới hạn',
+      message: totalExpenses > totalBudget ? 'Tổng chi tiêu đã vượt quá ngân sách' : 'Chi tiêu trong giới hạn',
       totalExpenses,
-      budgetAmount: budget.amount,
-      startBudgetDate,
-      endBudgetDate,
-      expenses,
+      totalBudget,
+      expenses: expensesList,
     };
 
     res.status(200).json(response);
