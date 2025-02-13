@@ -15,6 +15,6 @@ router.get('/', getAllBudgets);
 router.get('/:userId', getBudgetById);
 router.put('/:id', updateBudgetById);
 router.delete('/:id', deleteBudgetById);
-router.get('/check-budget-limit/:userId', checkBudgetLimit); 
+router.get('/check-budget-limit/:userId/:budgetId', checkBudgetLimit);
 
 export default router;
