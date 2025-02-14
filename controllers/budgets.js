@@ -53,53 +53,31 @@ export const deleteBudgetById = async (req, res) => {
 };
 export const checkBudgetLimit = async (req, res) => {
   try {
-    const { userId } = req.params;
-
-    // Lấy tất cả ngân sách của user
-    const budgets = await Budget.find({ userId });
-
-    if (!budgets.length) {
+    const { userId, budgetId } = req.params;
+    const budget = await Budget.findOne({ _id: budgetId, userId });
+    if (!budget) {
       return res.status(404).json({ message: 'Không tìm thấy ngân sách' });
     }
-
-    let totalBudget = 0;
-    let totalExpenses = 0;
-    let expensesList = [];
-    let startBudgetDate = budgets[0].startBudgetDate;
-    let endBudgetDate = budgets[0].endBudgetDate;
-
-    for (const budget of budgets) {
-      const start = new Date(budget.startBudgetDate);
-      const end = new Date(budget.endBudgetDate);
-
-      // Cập nhật ngày bắt đầu và kết thúc cho phản hồi API
-      if (start < startBudgetDate) startBudgetDate = start;
-      if (end > endBudgetDate) endBudgetDate = end;
-
-      // Lấy chi tiêu trong khoảng thời gian của ngân sách
-      const expenses = await Expense.find({
-        userId,
-        date: { $gte: start, $lte: end },
-      });
-
-      totalBudget += budget.amount;
-      totalExpenses += expenses.reduce((sum, expense) => sum + (expense.totalAmount || 0), 0);
-      expensesList.push(...expenses);
-    }
-
-    const response = {
-      message: totalExpenses > totalBudget ? 'Tổng chi tiêu đã vượt quá ngân sách' : 'Chi tiêu trong giới hạn',
+    const budgetStart = new Date(budget.startBudgetDate);
+    const budgetEnd = new Date(budget.endBudgetDate);
+    const expenses = await Expense.find({
+      userId,
+      date: { $gte: budgetStart, $lte: budgetEnd },
+    });
+    const totalExpenses = expenses.reduce((sum, exp) => sum + (exp.totalAmount || 0), 0);
+    const status = totalExpenses > budget.amount ? 'exceeded' : 'within limit';
+    return res.status(totalExpenses > budget.amount ? 400 : 200).json({
+      message: totalExpenses > budget.amount ? 'Tổng chi tiêu đã vượt quá giới hạn ngân sách' : 'Chi tiêu nằm trong giới hạn ngân sách',
+      budgetId: budget._id,
+      startBudgetDate: budgetStart,
+      endBudgetDate: budgetEnd,
+      budgetAmount: budget.amount,
       totalExpenses,
-      totalBudget,
-      startBudgetDate: startBudgetDate.toISOString(),
-      endBudgetDate: endBudgetDate.toISOString(),
-      expenses: expensesList,
-    };
-
-    res.status(200).json(response);
+      status,
+      expenses, 
+    });
   } catch (error) {
-    console.error('❌ Lỗi khi kiểm tra ngân sách:', error);
+    console.error('Lỗi khi kiểm tra giới hạn ngân sách:', error);
     res.status(500).json({ message: 'Lỗi máy chủ', error: error.message });
   }
 };
-
