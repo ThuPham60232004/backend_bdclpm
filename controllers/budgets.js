@@ -74,7 +74,6 @@ export const checkBudgetLimit = async (req, res) => {
       budgetAmount: budget.amount,
       totalExpenses,
       status,
-      expenses, 
     });
   } catch (error) {
     console.error('Lỗi khi kiểm tra giới hạn ngân sách:', error);
