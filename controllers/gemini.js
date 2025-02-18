@@ -73,7 +73,7 @@ export const processTextWithGemini = async (req, res) => {
             };
         }
         const totalAmount = parsedData.totalAmount;
-        const description = `Chi tiêu tổng cộng ${totalAmount} VND cho các mặt hàng trong danh mục ${parsedData.category.name}.`;
+        const description = `Chi tiêu tổng cộng ${totalAmount} các mặt hàng trong danh mục ${parsedData.category.name}.`;
         parsedData.category.description = description;
         res.json({
             status: 'success',
@@ -152,7 +152,6 @@ export const handleIncomeCommand = async (req, res) => {
             return res.json({ status: 'pending', message: `bạn chưa nhập đủ thông tin, hãy bổ sung: ${missingFields.join(', ')}` });
         }
 
-        // Tự động lưu thu nhập khi đủ thông tin
         const cleanedDescription = session.description.replace(/\\/g, '');
         const newIncome = new Income({
             userId, 

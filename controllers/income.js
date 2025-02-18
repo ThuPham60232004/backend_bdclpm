@@ -26,12 +26,12 @@ export const getIncomeByUserId = async (req, res) => {
   try {
     const incomes = await Income.find({ userId });
     if (!incomes || incomes.length === 0) {
-      return res.status(404).json({ message: 'No income found for this user' });
+      return res.status(404).json({ message: 'Không tìm thấy thu nhập người dùng này' });
     }
 
     res.status(200).json(incomes);
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: 'Server bị lỗi' });
   }
 };
 
