@@ -30,6 +30,7 @@ export const processTextWithGemini = async (req, res) => {
             {
               "storeName": "Tên cửa hàng",
               "totalAmount": "Tổng số tiền",
+              "currency": "Loại tiền tệ",
               "date": "Ngày mua",
               "items": [
                 { "name": "Tên sản phẩm", "quantity": "Số lượng", "price": "Giá" }
@@ -55,6 +56,11 @@ export const processTextWithGemini = async (req, res) => {
             console.error("Lỗi JSON:", jsonError);
             return res.status(500).json({ status: 'error', message: 'Lỗi xử lý JSON từ AI' });
         }
+        
+        // Extract the currency
+        const currencyMatch = extractedText.match(/(\d+(\.\d{1,2})?)\s*(₣|\$|€|£|¥|₣)/);
+        parsedData.currency = currencyMatch ? currencyMatch[3] : "VND"; // Default to VND if no match
+
         const matchedCategory = await Category.findOne({ name: parsedData.category.name });
 
         if (matchedCategory) {
@@ -73,7 +79,7 @@ export const processTextWithGemini = async (req, res) => {
             };
         }
         const totalAmount = parsedData.totalAmount;
-        const description = `Chi tiêu tổng cộng ${totalAmount} các mặt hàng trong danh mục ${parsedData.category.name}.`;
+        const description = `Chi tiêu tổng cộng ${totalAmount} ${parsedData.currency} các mặt hàng trong danh mục ${parsedData.category.name}.`;
         parsedData.category.description = description;
         res.json({
             status: 'success',
