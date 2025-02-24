@@ -26,6 +26,7 @@ export const processTextWithGemini = async (req, res) => {
               6. Khác (Các mặt hàng khác) ❓
               
             - Cung cấp mô tả về nội dung chi tiêu của hóa đơn trong mục "description".
+            - Xác định và phân loại chính xác loại tiền tệ (VD: VND, USD, EUR, ...).
 
             - Trả về JSON với định dạng sau:
             {
@@ -63,9 +64,8 @@ export const processTextWithGemini = async (req, res) => {
         // Mặc định ngày hiện tại nếu không có ngày trong dữ liệu phân tích
         parsedData.date = parsedData.date || moment().format('YYYY-MM-DD');
 
-        // Extract the currency from the text, default to "VND" if not found
-        const currencyMatch = extractedText.match(/(\d+(\.\d{1,2})?)\s*(₣|\$|€|£|¥|₣)/);
-        parsedData.currency = currencyMatch ? currencyMatch[3] : "VND";
+        // Kiểm tra và mặc định loại tiền tệ
+        parsedData.currency = parsedData.currency || "VND";
 
         // Tính tổng số tiền nếu totalAmount bị null
         if (!parsedData.totalAmount && parsedData.items?.length > 0) {
