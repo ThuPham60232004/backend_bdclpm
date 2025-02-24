@@ -64,8 +64,18 @@ export const processTextWithGemini = async (req, res) => {
         // Mặc định ngày hiện tại nếu không có ngày trong dữ liệu phân tích
         parsedData.date = parsedData.date || moment().format('YYYY-MM-DD');
 
-        // Kiểm tra và mặc định loại tiền tệ
-        parsedData.currency = parsedData.currency || "VND";
+        // Kiểm tra và mặc định loại tiền tệ nếu không xác định được từ văn bản hóa đơn
+        if (!parsedData.currency || parsedData.currency === "Không xác định") {
+            if (/\$/.test(extractedText)) {
+                parsedData.currency = "USD";
+            } else if (/€/.test(extractedText)) {
+                parsedData.currency = "EUR";
+            } else if (/¥/.test(extractedText)) {
+                parsedData.currency = "JPY";
+            } else {
+                parsedData.currency = "VND"; // Mặc định là tiền Việt nếu không có ký hiệu đặc biệt nào khác
+            }
+        }
 
         // Tính tổng số tiền nếu totalAmount bị null
         if (!parsedData.totalAmount && parsedData.items?.length > 0) {
@@ -109,7 +119,6 @@ export const processTextWithGemini = async (req, res) => {
         res.status(500).json({ status: 'error', message: error.message });
     }
 };
-
 const userSessions = {}; 
 export const handleIncomeCommand = async (req, res) => {
     try {
