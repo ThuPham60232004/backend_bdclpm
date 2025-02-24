@@ -65,8 +65,7 @@ export const processTextWithGemini = async (req, res) => {
         ? moment(parsedData.date).format('YYYY-MM-DD')
         : moment().format('YYYY-MM-DD');
 
-        // Kiểm tra và mặc định loại tiền tệ nếu không xác định được từ văn bản hóa đơn
-        if (!parsedData.currency || parsedData.currency === "Không xác định") {
+        if (!parsedData.currency || parsedData.currency === "Không xác định"||parsedData.currency === "VNĐ") {
             if (/\$/.test(extractedText)) {
                 parsedData.currency = "USD";
             } else if (/€/.test(extractedText)) {
@@ -74,7 +73,7 @@ export const processTextWithGemini = async (req, res) => {
             } else if (/¥/.test(extractedText)) {
                 parsedData.currency = "JPY";
             } else {
-                parsedData.currency = "VND"; // Mặc định là tiền Việt nếu không có ký hiệu đặc biệt nào khác
+                parsedData.currency = "VND"; 
             }
         }
 
