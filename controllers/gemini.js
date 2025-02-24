@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
-import Category from '../models/categories.js'; 
+import Category from '../models/categories.js';
+import Income from '../models/income.js';
 import moment from 'moment';
 
 dotenv.config();
@@ -26,14 +27,12 @@ export const processTextWithGemini = async (req, res) => {
               
             - Cung cấp mô tả về nội dung chi tiêu của hóa đơn trong mục "description".
 
-            - Chuẩn hóa ngày sang định dạng ISO (YYYY-MM-DD).
-
             - Trả về JSON với định dạng sau:
             {
               "storeName": "Tên cửa hàng",
               "totalAmount": "Tổng số tiền",
               "currency": "Loại tiền tệ",
-              "date": "Ngày mua (ISO format)",
+              "date": "Ngày mua",
               "items": [
                 { "name": "Tên sản phẩm", "quantity": "Số lượng", "price": "Giá" }
               ],
@@ -61,23 +60,23 @@ export const processTextWithGemini = async (req, res) => {
             return res.status(500).json({ status: 'error', message: 'Lỗi xử lý JSON từ AI' });
         }
 
-        parsedData.date = moment(parsedData.date, moment.ISO_8601, true).isValid()
-            ? moment(parsedData.date).format('YYYY-MM-DD')
-            : moment().format('YYYY-MM-DD');
+        // Mặc định ngày hiện tại nếu không có ngày trong dữ liệu phân tích
+        parsedData.date = parsedData.date || moment().format('YYYY-MM-DD');
 
-        const currencyMatch = extractedText.match(/(\d+(\.\d{1,2})?)\s*(₣|\$|€|£|¥|₫)/);
+        // Extract the currency from the text, default to "VND" if not found
+        const currencyMatch = extractedText.match(/(\d+(\.\d{1,2})?)\s*(₣|\$|€|£|¥|₣)/);
         parsedData.currency = currencyMatch ? currencyMatch[3] : "VND";
 
-        // Nếu totalAmount null thì tính tổng từ các sản phẩm
-        if (!parsedData.totalAmount && Array.isArray(parsedData.items)) {
-            const total = parsedData.items.reduce((sum, item) => {
+        // Tính tổng số tiền nếu totalAmount bị null
+        if (!parsedData.totalAmount && parsedData.items?.length > 0) {
+            parsedData.totalAmount = parsedData.items.reduce((total, item) => {
                 const quantity = parseFloat(item.quantity) || 1;
                 const price = parseFloat(item.price) || 0;
-                return sum + (quantity * price);
-            }, 0);
-            parsedData.totalAmount = total.toFixed(2);
+                return total + quantity * price;
+            }, 0).toFixed(2);
         }
 
+        // Kiểm tra danh mục trong cơ sở dữ liệu
         const matchedCategory = await Category.findOne({ name: parsedData.category.name });
 
         if (matchedCategory) {
@@ -96,6 +95,7 @@ export const processTextWithGemini = async (req, res) => {
             };
         }
 
+        // Tạo mô tả chi tiết cho chi tiêu
         const totalAmount = parsedData.totalAmount;
         const description = `Chi tiêu tổng cộng ${totalAmount} ${parsedData.currency} các mặt hàng trong danh mục ${parsedData.category.name}.`;
         parsedData.category.description = description;
@@ -109,7 +109,6 @@ export const processTextWithGemini = async (req, res) => {
         res.status(500).json({ status: 'error', message: error.message });
     }
 };
-
 
 const userSessions = {}; 
 export const handleIncomeCommand = async (req, res) => {
