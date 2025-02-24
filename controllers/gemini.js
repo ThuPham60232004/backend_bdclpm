@@ -65,8 +65,18 @@ export const processTextWithGemini = async (req, res) => {
             ? moment(parsedData.date).format('YYYY-MM-DD')
             : moment().format('YYYY-MM-DD');
 
-        const currencyMatch = extractedText.match(/(\d+(\.\d{1,2})?)\s*(₣|\$|€|£|¥|₣)/);
+        const currencyMatch = extractedText.match(/(\d+(\.\d{1,2})?)\s*(₣|\$|€|£|¥|₫)/);
         parsedData.currency = currencyMatch ? currencyMatch[3] : "VND";
+
+        // Nếu totalAmount null thì tính tổng từ các sản phẩm
+        if (!parsedData.totalAmount && Array.isArray(parsedData.items)) {
+            const total = parsedData.items.reduce((sum, item) => {
+                const quantity = parseFloat(item.quantity) || 1;
+                const price = parseFloat(item.price) || 0;
+                return sum + (quantity * price);
+            }, 0);
+            parsedData.totalAmount = total.toFixed(2);
+        }
 
         const matchedCategory = await Category.findOne({ name: parsedData.category.name });
 
@@ -99,6 +109,7 @@ export const processTextWithGemini = async (req, res) => {
         res.status(500).json({ status: 'error', message: error.message });
     }
 };
+
 
 const userSessions = {}; 
 export const handleIncomeCommand = async (req, res) => {
