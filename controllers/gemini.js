@@ -13,6 +13,7 @@ export const processTextWithGemini = async (req, res) => {
         if (!extractedText) {
             return res.status(400).json({ status: 'error', message: 'Không có văn bản hóa đơn được cung cấp' });
         }
+
         const model = genAI.getGenerativeModel({ model: "gemini-pro" });
         const prompt = `
             Phân tích và trích xuất thông tin từ văn bản hóa đơn sau dưới dạng JSON:
@@ -45,10 +46,12 @@ export const processTextWithGemini = async (req, res) => {
 
             Văn bản hóa đơn: "${extractedText}"
         `;
+
         const result = await model.generateContent([prompt]);
         const response = await result.response;
         let rawText = response.text().trim();
         rawText = rawText.replace(/```json|```/g, '').trim();
+        
         let parsedData;
         try {
             parsedData = JSON.parse(rawText);
@@ -56,11 +59,15 @@ export const processTextWithGemini = async (req, res) => {
             console.error("Lỗi JSON:", jsonError);
             return res.status(500).json({ status: 'error', message: 'Lỗi xử lý JSON từ AI' });
         }
-        
-        // Extract the currency
-        const currencyMatch = extractedText.match(/(\d+(\.\d{1,2})?)\s*(₣|\$|€|£|¥|₣)/);
-        parsedData.currency = currencyMatch ? currencyMatch[3] : "VND"; // Default to VND if no match
 
+        // Mặc định ngày hiện tại nếu không có ngày trong dữ liệu phân tích
+        parsedData.date = parsedData.date || moment().format('YYYY-MM-DD');
+
+        // Extract the currency from the text, default to "VND" if not found
+        const currencyMatch = extractedText.match(/(\d+(\.\d{1,2})?)\s*(₣|\$|€|£|¥|₣)/);
+        parsedData.currency = currencyMatch ? currencyMatch[3] : "VND";
+
+        // Kiểm tra danh mục trong cơ sở dữ liệu
         const matchedCategory = await Category.findOne({ name: parsedData.category.name });
 
         if (matchedCategory) {
@@ -78,9 +85,12 @@ export const processTextWithGemini = async (req, res) => {
                 icon: "category"
             };
         }
+
+        // Tạo mô tả chi tiết cho chi tiêu
         const totalAmount = parsedData.totalAmount;
         const description = `Chi tiêu tổng cộng ${totalAmount} ${parsedData.currency} các mặt hàng trong danh mục ${parsedData.category.name}.`;
         parsedData.category.description = description;
+
         res.json({
             status: 'success',
             data: parsedData
@@ -90,6 +100,7 @@ export const processTextWithGemini = async (req, res) => {
         res.status(500).json({ status: 'error', message: error.message });
     }
 };
+
 const userSessions = {}; 
 export const handleIncomeCommand = async (req, res) => {
     try {
