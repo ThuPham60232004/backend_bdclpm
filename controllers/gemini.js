@@ -27,13 +27,13 @@ export const processTextWithGemini = async (req, res) => {
               
             - Cung cấp mô tả về nội dung chi tiêu của hóa đơn trong mục "description".
             - Xác định và phân loại chính xác loại tiền tệ (VD: VND, USD, EUR, ...).
-
+            - Chuẩn hóa ngày sang định dạng ISO (YYYY-MM-DD).
             - Trả về JSON với định dạng sau:
             {
               "storeName": "Tên cửa hàng",
               "totalAmount": "Tổng số tiền",
               "currency": "Loại tiền tệ",
-              "date": "Ngày mua",
+             "date": "Ngày mua (ISO format)",
               "items": [
                 { "name": "Tên sản phẩm", "quantity": "Số lượng", "price": "Giá" }
               ],
@@ -61,8 +61,9 @@ export const processTextWithGemini = async (req, res) => {
             return res.status(500).json({ status: 'error', message: 'Lỗi xử lý JSON từ AI' });
         }
 
-        // Mặc định ngày hiện tại nếu không có ngày trong dữ liệu phân tích
-        parsedData.date = parsedData.date || moment().format('YYYY-MM-DD');
+        parsedData.date = moment(parsedData.date, moment.ISO_8601, true).isValid()
+        ? moment(parsedData.date).format('YYYY-MM-DD')
+        : moment().format('YYYY-MM-DD');
 
         // Kiểm tra và mặc định loại tiền tệ nếu không xác định được từ văn bản hóa đơn
         if (!parsedData.currency || parsedData.currency === "Không xác định") {
