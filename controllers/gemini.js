@@ -1,7 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
 import Category from '../models/categories.js'; 
-import Income from '../models/income.js';
 import moment from 'moment';
 
 dotenv.config();
@@ -27,12 +26,14 @@ export const processTextWithGemini = async (req, res) => {
               
             - Cung cấp mô tả về nội dung chi tiêu của hóa đơn trong mục "description".
 
+            - Chuẩn hóa ngày sang định dạng ISO (YYYY-MM-DD).
+
             - Trả về JSON với định dạng sau:
             {
               "storeName": "Tên cửa hàng",
               "totalAmount": "Tổng số tiền",
               "currency": "Loại tiền tệ",
-              "date": "Ngày mua",
+              "date": "Ngày mua (ISO format)",
               "items": [
                 { "name": "Tên sản phẩm", "quantity": "Số lượng", "price": "Giá" }
               ],
@@ -60,14 +61,13 @@ export const processTextWithGemini = async (req, res) => {
             return res.status(500).json({ status: 'error', message: 'Lỗi xử lý JSON từ AI' });
         }
 
-        // Mặc định ngày hiện tại nếu không có ngày trong dữ liệu phân tích
-        parsedData.date = parsedData.date || moment().format('YYYY-MM-DD');
+        parsedData.date = moment(parsedData.date, moment.ISO_8601, true).isValid()
+            ? moment(parsedData.date).format('YYYY-MM-DD')
+            : moment().format('YYYY-MM-DD');
 
-        // Extract the currency from the text, default to "VND" if not found
         const currencyMatch = extractedText.match(/(\d+(\.\d{1,2})?)\s*(₣|\$|€|£|¥|₣)/);
         parsedData.currency = currencyMatch ? currencyMatch[3] : "VND";
 
-        // Kiểm tra danh mục trong cơ sở dữ liệu
         const matchedCategory = await Category.findOne({ name: parsedData.category.name });
 
         if (matchedCategory) {
@@ -86,7 +86,6 @@ export const processTextWithGemini = async (req, res) => {
             };
         }
 
-        // Tạo mô tả chi tiết cho chi tiêu
         const totalAmount = parsedData.totalAmount;
         const description = `Chi tiêu tổng cộng ${totalAmount} ${parsedData.currency} các mặt hàng trong danh mục ${parsedData.category.name}.`;
         parsedData.category.description = description;
