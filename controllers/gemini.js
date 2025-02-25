@@ -3,31 +3,9 @@ import dotenv from 'dotenv';
 import Category from '../models/categories.js';
 import Income from '../models/income.js';
 import moment from 'moment';
-import axios from 'axios';
 
 dotenv.config();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const EXCHANGE_API_KEY = process.env.EXCHANGE_API_KEY; // Thêm khóa API tỷ giá vào .env
-
-// Hàm chuyển đổi từ tiền ngoại tệ sang VND
-const convertToVND = async (amount, currency) => {
-    try {
-        if (currency === 'VND') return parseFloat(amount);
-        
-        const response = await axios.get(`https://v6.exchangerate-api.com/v6/${EXCHANGE_API_KEY}/latest/${currency}`);
-        const exchangeRate = response.data?.conversion_rates?.VND;
-
-        if (!exchangeRate) {
-            console.warn(`Không tìm thấy tỷ giá cho ${currency}, giữ nguyên giá trị gốc.`);
-            return parseFloat(amount);
-        }
-
-        return parseFloat(amount) * exchangeRate;
-    } catch (error) {
-        console.error("Lỗi chuyển đổi tiền tệ:", error);
-        return parseFloat(amount); // Trả về giá trị ban đầu nếu có lỗi
-    }
-};
 
 export const processTextWithGemini = async (req, res) => {
     try {
@@ -39,20 +17,34 @@ export const processTextWithGemini = async (req, res) => {
         const model = genAI.getGenerativeModel({ model: "gemini-pro" });
         const prompt = `
             Phân tích và trích xuất thông tin từ văn bản hóa đơn sau dưới dạng JSON:
+            - Xác định danh mục chi tiêu phù hợp với danh sách dưới đây:
+              1. Thực phẩm (Các mặt hàng liên quan đến thực phẩm) 🍽️
+              2. Điện tử (Thiết bị và dụng cụ điện tử) 📱
+              3. Dịch vụ (Các dịch vụ và tiện ích) 💼
+              4. Thời trang (Quần áo và phụ kiện thời trang) 👗
+              5. Vận chuyển (Dịch vụ vận chuyển và logistics) 🚚
+              6. Khác (Các mặt hàng khác) ❓
+              
+            - Cung cấp mô tả về nội dung chi tiêu của hóa đơn trong mục "description".
+            - Xác định và phân loại chính xác loại tiền tệ (VD: VND, USD, EUR, ...).
+            - Chuẩn hóa ngày sang định dạng ISO (YYYY-MM-DD).
+            - Trả về JSON với định dạng sau:
             {
               "storeName": "Tên cửa hàng",
               "totalAmount": "Tổng số tiền",
               "currency": "Loại tiền tệ",
-              "date": "Ngày mua (ISO format)",
+             "date": "Ngày mua (ISO format)",
               "items": [
                 { "name": "Tên sản phẩm", "quantity": "Số lượng", "price": "Giá" }
               ],
               "category": {
+                "_id": "ID danh mục",
                 "name": "Tên danh mục",
                 "description": "Mô tả chi tiêu",
                 "icon": "Biểu tượng danh mục (emoji hoặc URL)"
               }
             }
+
             Văn bản hóa đơn: "${extractedText}"
         `;
 
@@ -60,7 +52,7 @@ export const processTextWithGemini = async (req, res) => {
         const response = await result.response;
         let rawText = response.text().trim();
         rawText = rawText.replace(/```json|```/g, '').trim();
-
+        
         let parsedData;
         try {
             parsedData = JSON.parse(rawText);
@@ -70,10 +62,10 @@ export const processTextWithGemini = async (req, res) => {
         }
 
         parsedData.date = moment(parsedData.date, moment.ISO_8601, true).isValid()
-            ? moment(parsedData.date).format('YYYY-MM-DD')
-            : moment().format('YYYY-MM-DD');
+        ? moment(parsedData.date).format('YYYY-MM-DD')
+        : moment().format('YYYY-MM-DD');
 
-        if (!parsedData.currency || parsedData.currency === "Không xác định" || parsedData.currency === "VNĐ") {
+        if (!parsedData.currency || parsedData.currency === "Không xác định"||parsedData.currency === "VNĐ") {
             if (/\$/.test(extractedText)) {
                 parsedData.currency = "USD";
             } else if (/€/.test(extractedText)) {
@@ -81,10 +73,11 @@ export const processTextWithGemini = async (req, res) => {
             } else if (/¥/.test(extractedText)) {
                 parsedData.currency = "JPY";
             } else {
-                parsedData.currency = "VND";
+                parsedData.currency = "VND"; 
             }
         }
 
+        // Tính tổng số tiền nếu totalAmount bị null
         if (!parsedData.totalAmount && parsedData.items?.length > 0) {
             parsedData.totalAmount = parsedData.items.reduce((total, item) => {
                 const quantity = parseFloat(item.quantity) || 1;
@@ -93,25 +86,29 @@ export const processTextWithGemini = async (req, res) => {
             }, 0).toFixed(2);
         }
 
+        // Kiểm tra danh mục trong cơ sở dữ liệu
         const matchedCategory = await Category.findOne({ name: parsedData.category.name });
-        parsedData.category = matchedCategory ? {
-            _id: matchedCategory._id,
-            name: matchedCategory.name,
-            description: matchedCategory.description,
-            icon: matchedCategory.icon
-        } : {
-            _id: "678cf12ee729fb9da6737256",
-            name: "Khác",
-            description: "Các mặt hàng khác",
-            icon: "category"
-        };
 
+        if (matchedCategory) {
+            parsedData.category = {
+                _id: matchedCategory._id,
+                name: matchedCategory.name,
+                description: matchedCategory.description,
+                icon: matchedCategory.icon
+            };
+        } else {
+            parsedData.category = {
+                _id: "678cf12ee729fb9da6737256",
+                name: "Khác",
+                description: "Các mặt hàng khác",
+                icon: "category"
+            };
+        }
+
+        // Tạo mô tả chi tiết cho chi tiêu
         const totalAmount = parsedData.totalAmount;
         const description = `Chi tiêu tổng cộng ${totalAmount} ${parsedData.currency} các mặt hàng trong danh mục ${parsedData.category.name}.`;
         parsedData.category.description = description;
-
-        // Chuyển đổi sang VND nếu cần thiết
-        parsedData.totalAmountVND = await convertToVND(parsedData.totalAmount, parsedData.currency);
 
         res.json({
             status: 'success',
@@ -122,7 +119,6 @@ export const processTextWithGemini = async (req, res) => {
         res.status(500).json({ status: 'error', message: error.message });
     }
 };
-
 const userSessions = {}; 
 export const handleIncomeCommand = async (req, res) => {
     try {
