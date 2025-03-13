@@ -14,7 +14,7 @@ export const processTextWithGemini = async (req, res) => {
             return res.status(400).json({ status: 'error', message: 'Không có văn bản hóa đơn được cung cấp' });
         }
 
-        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-002" });
         const prompt = `
             Phân tích và trích xuất thông tin từ văn bản hóa đơn sau dưới dạng JSON:
             - Xác định danh mục chi tiêu phù hợp với danh sách dưới đây:
@@ -85,8 +85,6 @@ export const processTextWithGemini = async (req, res) => {
                 return total + quantity * price;
             }, 0).toFixed(2);
         }
-
-        // Kiểm tra danh mục trong cơ sở dữ liệu
         const matchedCategory = await Category.findOne({ name: parsedData.category.name });
 
         if (matchedCategory) {
@@ -104,8 +102,6 @@ export const processTextWithGemini = async (req, res) => {
                 icon: "category"
             };
         }
-
-        // Tạo mô tả chi tiết cho chi tiêu
         const totalAmount = parsedData.totalAmount;
         const description = `Chi tiêu tổng cộng ${totalAmount} ${parsedData.currency} các mặt hàng trong danh mục ${parsedData.category.name}.`;
         parsedData.category.description = description;
