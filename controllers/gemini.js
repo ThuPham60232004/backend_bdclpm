@@ -64,25 +64,26 @@ export const processTextWithGemini = async (req, res) => {
 
         if (currency !== "VND") {
             let exchangeRate = null;
+            let convertedCurrency = "VND"; // Tiền sau khi đổi
+            const originalCurrency = currency; // Lưu lại tiền tệ ban đầu
             
-            // 🟢 Thử lấy tỷ giá THB → VND
+            // 🟢 Thử lấy tỷ giá từ THB → VND
             const prompt2 = `Tìm tỷ giá mới nhất của 1 ${currency} sang VND. Chỉ trả về một số duy nhất.`;
             const result2 = await model.generateContent([prompt2]);
             const response2 = await result2.response;
             const exchangeRateText = response2.text().trim();
             
-            // Nếu AI trả về số hợp lệ thì dùng
             exchangeRate = parseFloat(exchangeRateText);
             
-            // 🔴 Nếu AI không tìm thấy, thử THB → USD rồi USD → VND
+            // 🔴 Nếu không có tỷ giá, thử THB → USD rồi USD → VND
             if (isNaN(exchangeRate) || exchangeRate <= 0) {
-                console.warn(`Không tìm thấy tỷ giá ${currency} → VND, thử chuyển đổi qua USD`);
-                
+                console.warn(`Không tìm thấy tỷ giá ${currency} → VND, thử qua USD`);
+        
                 const prompt3 = `Tìm tỷ giá mới nhất của 1 ${currency} sang USD. Chỉ trả về một số duy nhất.`;
                 const result3 = await model.generateContent([prompt3]);
                 const response3 = await result3.response;
                 const rateToUSD = parseFloat(response3.text().trim());
-                
+        
                 const prompt4 = `Tìm tỷ giá mới nhất của 1 USD sang VND. Chỉ trả về một số duy nhất.`;
                 const result4 = await model.generateContent([prompt4]);
                 const response4 = await result4.response;
@@ -93,7 +94,7 @@ export const processTextWithGemini = async (req, res) => {
                 }
             }
         
-            // 🔴 Nếu vẫn lỗi, dùng tỷ giá fallback
+            // 🔴 Nếu vẫn không lấy được tỷ giá, dùng tỷ giá mặc định
             if (isNaN(exchangeRate) || exchangeRate <= 0) {
                 console.error("Không thể lấy tỷ giá, dùng tỷ giá mặc định");
                 exchangeRate = currency === "THB" ? 700 : null;
@@ -102,11 +103,12 @@ export const processTextWithGemini = async (req, res) => {
             if (exchangeRate) {
                 parsedData.exchangeRate = exchangeRate;
                 parsedData.convertedAmount = (totalAmount * exchangeRate).toFixed(2);
-                parsedData.currency = "VND";
+                parsedData.originalCurrency = originalCurrency; // Lưu tiền gốc
+                parsedData.convertedCurrency = convertedCurrency; // Tiền sau khi đổi
             } else {
                 return res.status(500).json({ status: 'error', message: `Không thể lấy tỷ giá cho ${currency}` });
             }
-        }        
+        }            
 
         // **Chuẩn hóa lại ngày tháng**
         parsedData.date = moment(parsedData.date, moment.ISO_8601, true).isValid()
