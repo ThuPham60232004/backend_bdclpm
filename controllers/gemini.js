@@ -56,13 +56,11 @@ export const processTextWithGemini = async (req, res) => {
         let rawText = response.text().trim();
         rawText = rawText.replace(/```json|```/g, '').trim();
 
-        let parsedData;
-        try {
-            parsedData = JSON.parse(rawText);
-        } catch (jsonError) {
-            console.error("Lỗi JSON:", jsonError);
+        const parsedData = cleanJsonResponse(rawText);
+        if (!parsedData) {
             return res.status(500).json({ status: 'error', message: 'Lỗi xử lý JSON từ AI' });
         }
+
 
         parsedData.date = moment(parsedData.date, moment.ISO_8601, true).isValid()
             ? moment(parsedData.date).format('YYYY-MM-DD')
@@ -125,7 +123,20 @@ export const processTextWithGemini = async (req, res) => {
         res.status(500).json({ status: 'error', message: error.message });
     }
 };
-
+const cleanJsonResponse = (text) => {
+    try {
+        text = text.replace(/```json|```/g, '').trim(); // Xóa dấu markdown nếu có
+        const firstBracket = text.indexOf('{');
+        const lastBracket = text.lastIndexOf('}');
+        if (firstBracket !== -1 && lastBracket !== -1) {
+            text = text.substring(firstBracket, lastBracket + 1); // Giữ phần JSON chính xác
+        }
+        return JSON.parse(text);
+    } catch (error) {
+        console.error("Lỗi phân tích JSON:", error);
+        return null;
+    }
+};
 const userSessions = {}; 
 export const handleIncomeCommand = async (req, res) => {
     try {
@@ -204,6 +215,7 @@ export const handleIncomeCommand = async (req, res) => {
 
         await newIncome.save(); 
         delete userSessions[userId];
+        
         return res.json({ status: 'success', message: 'Thu nhập đã được lưu 🎉', data: newIncome });
 
     } catch (error) {
