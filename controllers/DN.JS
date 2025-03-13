@@ -1,5 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
+import Category from '../models/categories.js';
+import Income from '../models/income.js';
 import moment from 'moment';
 
 dotenv.config();
@@ -12,9 +14,8 @@ export const processTextWithGemini = async (req, res) => {
             return res.status(400).json({ status: 'error', message: 'Không có văn bản hóa đơn được cung cấp' });
         }
 
-        // **Prompt đầu tiên: Trích xuất thông tin hóa đơn**
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-002" });
-        const prompt1 = `
+        const prompt = `
             Phân tích và trích xuất thông tin từ văn bản hóa đơn sau dưới dạng JSON:
             - Xác định danh mục chi tiêu phù hợp với danh sách dưới đây:
               1. Thực phẩm (Các mặt hàng liên quan đến thực phẩm) 🍽️
@@ -32,7 +33,7 @@ export const processTextWithGemini = async (req, res) => {
               "storeName": "Tên cửa hàng",
               "totalAmount": "Tổng số tiền",
               "currency": "Loại tiền tệ",
-              "date": "Ngày mua (ISO format)",
+             "date": "Ngày mua (ISO format)",
               "items": [
                 { "name": "Tên sản phẩm", "quantity": "Số lượng", "price": "Giá" }
               ],
@@ -47,9 +48,10 @@ export const processTextWithGemini = async (req, res) => {
             Văn bản hóa đơn: "${extractedText}"
         `;
 
-        const result1 = await model.generateContent([prompt1]);
-        const response1 = await result1.response;
-        let rawText = response1.text().trim().replace(/```json|```/g, '').trim();
+        const result = await model.generateContent([prompt]);
+        const response = await result.response;
+        let rawText = response.text().trim();
+        rawText = rawText.replace(/```json|```/g, '').trim();
         
         let parsedData;
         try {
@@ -59,29 +61,50 @@ export const processTextWithGemini = async (req, res) => {
             return res.status(500).json({ status: 'error', message: 'Lỗi xử lý JSON từ AI' });
         }
 
-        let currency = parsedData.currency || "VND";
-        let totalAmount = parseFloat(parsedData.totalAmount) || 0;
+        parsedData.date = moment(parsedData.date, moment.ISO_8601, true).isValid()
+        ? moment(parsedData.date).format('YYYY-MM-DD')
+        : moment().format('YYYY-MM-DD');
 
-        // **Prompt thứ hai: Lấy tỷ giá từ Google**
-        if (currency !== "VND") {
-            const prompt2 = `Hãy tìm trên Google tỷ giá hối đoái mới nhất của 1 ${currency} sang VND và chỉ trả về một số duy nhất.`;
-            const result2 = await model.generateContent([prompt2]);
-            const response2 = await result2.response;
-            const exchangeRate = parseFloat(response2.text().trim());
-
-            if (!isNaN(exchangeRate) && exchangeRate > 0) {
-                parsedData.exchangeRate = exchangeRate; // 🟢 Thêm tỷ giá vào JSON
-                parsedData.convertedAmount = (totalAmount * exchangeRate).toFixed(2); // 🟢 Thêm số tiền sau quy đổi
-                parsedData.currency = "VND"; // 🟢 Cập nhật loại tiền tệ
+        if (!parsedData.currency || parsedData.currency === "Không xác định"||parsedData.currency === "VNĐ") {
+            if (/\$/.test(extractedText)) {
+                parsedData.currency = "USD";
+            } else if (/€/.test(extractedText)) {
+                parsedData.currency = "EUR";
+            } else if (/¥/.test(extractedText)) {
+                parsedData.currency = "JPY";
             } else {
-                return res.status(500).json({ status: 'error', message: 'Không thể lấy tỷ giá' });
+                parsedData.currency = "VND"; 
             }
         }
 
-        // **Chuẩn hóa lại ngày tháng**
-        parsedData.date = moment(parsedData.date, moment.ISO_8601, true).isValid()
-            ? moment(parsedData.date).format('YYYY-MM-DD')
-            : moment().format('YYYY-MM-DD');
+        // Tính tổng số tiền nếu totalAmount bị null
+        if (!parsedData.totalAmount && parsedData.items?.length > 0) {
+            parsedData.totalAmount = parsedData.items.reduce((total, item) => {
+                const quantity = parseFloat(item.quantity) || 1;
+                const price = parseFloat(item.price) || 0;
+                return total + quantity * price;
+            }, 0).toFixed(2);
+        }
+        const matchedCategory = await Category.findOne({ name: parsedData.category.name });
+
+        if (matchedCategory) {
+            parsedData.category = {
+                _id: matchedCategory._id,
+                name: matchedCategory.name,
+                description: matchedCategory.description,
+                icon: matchedCategory.icon
+            };
+        } else {
+            parsedData.category = {
+                _id: "678cf12ee729fb9da6737256",
+                name: "Khác",
+                description: "Các mặt hàng khác",
+                icon: "category"
+            };
+        }
+        const totalAmount = parsedData.totalAmount;
+        const description = `Chi tiêu tổng cộng ${totalAmount} ${parsedData.currency} các mặt hàng trong danh mục ${parsedData.category.name}.`;
+        parsedData.category.description = description;
 
         res.json({
             status: 'success',
@@ -92,8 +115,6 @@ export const processTextWithGemini = async (req, res) => {
         res.status(500).json({ status: 'error', message: error.message });
     }
 };
-
-
 const userSessions = {}; 
 export const handleIncomeCommand = async (req, res) => {
     try {
