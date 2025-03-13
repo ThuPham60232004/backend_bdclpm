@@ -62,21 +62,51 @@ export const processTextWithGemini = async (req, res) => {
         let currency = parsedData.currency || "VND";
         let totalAmount = parseFloat(parsedData.totalAmount) || 0;
 
-        // **Prompt thứ hai: Lấy tỷ giá từ Google**
         if (currency !== "VND") {
-            const prompt2 = `Hãy tìm trên Google tỷ giá hối đoái mới nhất của 1 ${currency} sang VND và chỉ trả về một số duy nhất.`;
+            let exchangeRate = null;
+            
+            // 🟢 Thử lấy tỷ giá THB → VND
+            const prompt2 = `Tìm tỷ giá mới nhất của 1 ${currency} sang VND. Chỉ trả về một số duy nhất.`;
             const result2 = await model.generateContent([prompt2]);
             const response2 = await result2.response;
-            const exchangeRate = parseFloat(response2.text().trim());
-
-            if (!isNaN(exchangeRate) && exchangeRate > 0) {
-                parsedData.exchangeRate = exchangeRate; // 🟢 Thêm tỷ giá vào JSON
-                parsedData.convertedAmount = (totalAmount * exchangeRate).toFixed(2); // 🟢 Thêm số tiền sau quy đổi
-                parsedData.currency = "VND"; // 🟢 Cập nhật loại tiền tệ
-            } else {
-                return res.status(500).json({ status: 'error', message: 'Không thể lấy tỷ giá' });
+            const exchangeRateText = response2.text().trim();
+            
+            // Nếu AI trả về số hợp lệ thì dùng
+            exchangeRate = parseFloat(exchangeRateText);
+            
+            // 🔴 Nếu AI không tìm thấy, thử THB → USD rồi USD → VND
+            if (isNaN(exchangeRate) || exchangeRate <= 0) {
+                console.warn(`Không tìm thấy tỷ giá ${currency} → VND, thử chuyển đổi qua USD`);
+                
+                const prompt3 = `Tìm tỷ giá mới nhất của 1 ${currency} sang USD. Chỉ trả về một số duy nhất.`;
+                const result3 = await model.generateContent([prompt3]);
+                const response3 = await result3.response;
+                const rateToUSD = parseFloat(response3.text().trim());
+                
+                const prompt4 = `Tìm tỷ giá mới nhất của 1 USD sang VND. Chỉ trả về một số duy nhất.`;
+                const result4 = await model.generateContent([prompt4]);
+                const response4 = await result4.response;
+                const rateUSDToVND = parseFloat(response4.text().trim());
+        
+                if (!isNaN(rateToUSD) && rateToUSD > 0 && !isNaN(rateUSDToVND) && rateUSDToVND > 0) {
+                    exchangeRate = rateToUSD * rateUSDToVND;
+                }
             }
-        }
+        
+            // 🔴 Nếu vẫn lỗi, dùng tỷ giá fallback
+            if (isNaN(exchangeRate) || exchangeRate <= 0) {
+                console.error("Không thể lấy tỷ giá, dùng tỷ giá mặc định");
+                exchangeRate = currency === "THB" ? 700 : null;
+            }
+        
+            if (exchangeRate) {
+                parsedData.exchangeRate = exchangeRate;
+                parsedData.convertedAmount = (totalAmount * exchangeRate).toFixed(2);
+                parsedData.currency = "VND";
+            } else {
+                return res.status(500).json({ status: 'error', message: `Không thể lấy tỷ giá cho ${currency}` });
+            }
+        }        
 
         // **Chuẩn hóa lại ngày tháng**
         parsedData.date = moment(parsedData.date, moment.ISO_8601, true).isValid()
