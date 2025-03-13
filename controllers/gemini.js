@@ -1,9 +1,28 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
+import Category from '../models/categories.js';
+import Income from '../models/income.js';
 import moment from 'moment';
 
 dotenv.config();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+const convertCurrency = async (amount, fromCurrency, toCurrency) => {
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-002" });
+    const prompt = `
+        Hãy chuyển đổi số tiền ${amount} ${fromCurrency} sang ${toCurrency} và chỉ trả về số tiền đã chuyển đổi mà không có văn bản giải thích.
+    `;
+
+    try {
+        const result = await model.generateContent([prompt]);
+        const response = await result.response;
+        let convertedAmount = parseFloat(response.text().trim().replace(/[^\d.]/g, ''));
+        return isNaN(convertedAmount) ? null : convertedAmount;
+    } catch (error) {
+        console.error("Lỗi chuyển đổi tiền tệ:", error);
+        return null;
+    }
+};
 
 export const processTextWithGemini = async (req, res) => {
     try {
@@ -12,22 +31,9 @@ export const processTextWithGemini = async (req, res) => {
             return res.status(400).json({ status: 'error', message: 'Không có văn bản hóa đơn được cung cấp' });
         }
 
-        // **Prompt đầu tiên: Trích xuất thông tin hóa đơn**
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-002" });
-        const prompt1 = `
+        const prompt = `
             Phân tích và trích xuất thông tin từ văn bản hóa đơn sau dưới dạng JSON:
-            - Xác định danh mục chi tiêu phù hợp với danh sách dưới đây:
-              1. Thực phẩm (Các mặt hàng liên quan đến thực phẩm) 🍽️
-              2. Điện tử (Thiết bị và dụng cụ điện tử) 📱
-              3. Dịch vụ (Các dịch vụ và tiện ích) 💼
-              4. Thời trang (Quần áo và phụ kiện thời trang) 👗
-              5. Vận chuyển (Dịch vụ vận chuyển và logistics) 🚚
-              6. Khác (Các mặt hàng khác) ❓
-              
-            - Cung cấp mô tả về nội dung chi tiêu của hóa đơn trong mục "description".
-            - Xác định và phân loại chính xác loại tiền tệ (VD: VND, USD, EUR, ...).
-            - Chuẩn hóa ngày sang định dạng ISO (YYYY-MM-DD).
-            - Trả về JSON với định dạng sau:
             {
               "storeName": "Tên cửa hàng",
               "totalAmount": "Tổng số tiền",
@@ -37,20 +43,19 @@ export const processTextWithGemini = async (req, res) => {
                 { "name": "Tên sản phẩm", "quantity": "Số lượng", "price": "Giá" }
               ],
               "category": {
-                "_id": "ID danh mục",
                 "name": "Tên danh mục",
                 "description": "Mô tả chi tiêu",
-                "icon": "Biểu tượng danh mục (emoji hoặc URL)"
+                "icon": "Biểu tượng danh mục"
               }
             }
-
             Văn bản hóa đơn: "${extractedText}"
         `;
 
-        const result1 = await model.generateContent([prompt1]);
-        const response1 = await result1.response;
-        let rawText = response1.text().trim().replace(/```json|```/g, '').trim();
-        
+        const result = await model.generateContent([prompt]);
+        const response = await result.response;
+        let rawText = response.text().trim();
+        rawText = rawText.replace(/```json|```/g, '').trim();
+
         let parsedData;
         try {
             parsedData = JSON.parse(rawText);
@@ -59,59 +64,57 @@ export const processTextWithGemini = async (req, res) => {
             return res.status(500).json({ status: 'error', message: 'Lỗi xử lý JSON từ AI' });
         }
 
-        let currency = parsedData.currency || "VND";
-        let totalAmount = parseFloat(parsedData.totalAmount) || 0;
-
-        if (currency !== "VND") {
-            let exchangeRate = null;
-            
-            // 🟢 Thử lấy tỷ giá THB → VND
-            const prompt2 = `Tìm tỷ giá mới nhất của 1 ${currency} sang VND. Chỉ trả về một số duy nhất.`;
-            const result2 = await model.generateContent([prompt2]);
-            const response2 = await result2.response;
-            const exchangeRateText = response2.text().trim();
-            
-            // Nếu AI trả về số hợp lệ thì dùng
-            exchangeRate = parseFloat(exchangeRateText);
-            
-            // 🔴 Nếu AI không tìm thấy, thử THB → USD rồi USD → VND
-            if (isNaN(exchangeRate) || exchangeRate <= 0) {
-                console.warn(`Không tìm thấy tỷ giá ${currency} → VND, thử chuyển đổi qua USD`);
-                
-                const prompt3 = `Tìm tỷ giá mới nhất của 1 ${currency} sang USD. Chỉ trả về một số duy nhất.`;
-                const result3 = await model.generateContent([prompt3]);
-                const response3 = await result3.response;
-                const rateToUSD = parseFloat(response3.text().trim());
-                
-                const prompt4 = `Tìm tỷ giá mới nhất của 1 USD sang VND. Chỉ trả về một số duy nhất.`;
-                const result4 = await model.generateContent([prompt4]);
-                const response4 = await result4.response;
-                const rateUSDToVND = parseFloat(response4.text().trim());
-        
-                if (!isNaN(rateToUSD) && rateToUSD > 0 && !isNaN(rateUSDToVND) && rateUSDToVND > 0) {
-                    exchangeRate = rateToUSD * rateUSDToVND;
-                }
-            }
-        
-            // 🔴 Nếu vẫn lỗi, dùng tỷ giá fallback
-            if (isNaN(exchangeRate) || exchangeRate <= 0) {
-                console.error("Không thể lấy tỷ giá, dùng tỷ giá mặc định");
-                exchangeRate = currency === "THB" ? 700 : null;
-            }
-        
-            if (exchangeRate) {
-                parsedData.exchangeRate = exchangeRate;
-                parsedData.convertedAmount = (totalAmount * exchangeRate).toFixed(2);
-                parsedData.currency = "VND";
-            } else {
-                return res.status(500).json({ status: 'error', message: `Không thể lấy tỷ giá cho ${currency}` });
-            }
-        }        
-
-        // **Chuẩn hóa lại ngày tháng**
         parsedData.date = moment(parsedData.date, moment.ISO_8601, true).isValid()
             ? moment(parsedData.date).format('YYYY-MM-DD')
             : moment().format('YYYY-MM-DD');
+
+        const detectedCurrency = parsedData.currency || "VND";
+        if (detectedCurrency === "VNĐ") parsedData.currency = "VND";
+
+        if (!parsedData.totalAmount && parsedData.items?.length > 0) {
+            parsedData.totalAmount = parsedData.items.reduce((total, item) => {
+                const quantity = parseFloat(item.quantity) || 1;
+                const price = parseFloat(item.price) || 0;
+                return total + quantity * price;
+            }, 0).toFixed(2);
+        }
+
+        const matchedCategory = await Category.findOne({ name: parsedData.category.name });
+
+        if (matchedCategory) {
+            parsedData.category = {
+                _id: matchedCategory._id,
+                name: matchedCategory.name,
+                description: matchedCategory.description,
+                icon: matchedCategory.icon
+            };
+        } else {
+            parsedData.category = {
+                _id: "678cf12ee729fb9da6737256",
+                name: "Khác",
+                description: "Các mặt hàng khác",
+                icon: "category"
+            };
+        }
+
+        const originalAmount = parseFloat(parsedData.totalAmount);
+        const originalCurrency = parsedData.currency;
+        let convertedAmount = originalAmount;
+        let convertedCurrency = "VND";
+
+        if (originalCurrency !== "VND") {
+            const conversionResult = await convertCurrency(originalAmount, originalCurrency, "VND");
+            if (conversionResult) {
+                convertedAmount = conversionResult.toFixed(2);
+            }
+        }
+
+        parsedData.originalAmount = originalAmount;
+        parsedData.originalCurrency = originalCurrency;
+        parsedData.convertedAmount = convertedAmount;
+        parsedData.convertedCurrency = convertedCurrency;
+
+        parsedData.category.description = `Chi tiêu tổng cộng ${convertedAmount} ${convertedCurrency} (${originalAmount} ${originalCurrency}) trong danh mục ${parsedData.category.name}.`;
 
         res.json({
             status: 'success',
@@ -122,7 +125,6 @@ export const processTextWithGemini = async (req, res) => {
         res.status(500).json({ status: 'error', message: error.message });
     }
 };
-
 
 const userSessions = {}; 
 export const handleIncomeCommand = async (req, res) => {
