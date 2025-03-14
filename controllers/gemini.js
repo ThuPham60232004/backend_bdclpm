@@ -53,9 +53,16 @@ export const processTextWithGemini = async (req, res) => {
         let rawText = response.text().trim();
         rawText = rawText.replace(/```json|```/g, '').trim();
         console.log("Raw JSON từ Gemini:", rawText);
+        const jsonMatch = rawText.match(/\{[\s\S]*\}$/);
+            if (!jsonMatch) {
+                return res.status(500).json({ status: 'error', message: 'Không tìm thấy JSON hợp lệ trong phản hồi từ AI' });
+            }
+
+            const jsonString = jsonMatch[0]; 
+            console.log("JSON hợp lệ từ Gemini:", jsonString);
         let parsedData;
         try {
-            parsedData = JSON.parse(rawText);
+            parsedData = JSON.parse(jsonString);
         } catch (jsonError) {
             console.error("Lỗi JSON:", jsonError);
             return res.status(500).json({ status: 'error', message: 'Lỗi xử lý JSON từ AI' });
