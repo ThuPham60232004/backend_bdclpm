@@ -15,102 +15,106 @@ export const processTextWithGemini = async (req, res) => {
         }
 
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-002" });
+
         const prompt = `
-            Phân tích và trích xuất thông tin từ văn bản hóa đơn sau dưới dạng JSON:
-            - Xác định danh mục chi tiêu phù hợp với danh sách dưới đây:
-              1. Thực phẩm (Các mặt hàng liên quan đến thực phẩm) 🍽️
-              2. Điện tử (Thiết bị và dụng cụ điện tử) 📱
-              3. Dịch vụ (Các dịch vụ và tiện ích) 💼
-              4. Thời trang (Quần áo và phụ kiện thời trang) 👗
-              5. Vận chuyển (Dịch vụ vận chuyển và logistics) 🚚
-              6. Khác (Các mặt hàng khác) ❓
-              
-            - Cung cấp mô tả về nội dung chi tiêu của hóa đơn trong mục "description".
-            - Xác định và phân loại chính xác loại tiền tệ (VD: VND, USD, EUR, ...).
-            - Chuẩn hóa ngày sang định dạng ISO (YYYY-MM-DD).
-            - Trả về JSON với định dạng sau:
-            {
-              "storeName": "Tên cửa hàng",
-              "totalAmount": "Tổng số tiền",
-              "currency": "Loại tiền tệ",
-             "date": "Ngày mua (ISO format)",
-              "items": [
-                { "name": "Tên sản phẩm", "quantity": "Số lượng", "price": "Giá" }
-              ],
-              "category": {
-                "_id": "ID danh mục",
-                "name": "Tên danh mục",
-                "description": "Mô tả chi tiêu",
-                "icon": "Biểu tượng danh mục (emoji hoặc URL)"
-              }
-            }
+        Phân tích và trích xuất thông tin từ văn bản hóa đơn sau dưới dạng JSON:
+        - Xác định danh mục chi tiêu phù hợp với danh sách dưới đây:
+          1. Thực phẩm (Các mặt hàng liên quan đến thực phẩm)
+          2. Điện tử (Thiết bị và dụng cụ điện tử)
+          3. Dịch vụ (Các dịch vụ và tiện ích)
+          4. Thời trang (Quần áo và phụ kiện thời trang) 
+          5. Vận chuyển (Dịch vụ vận chuyển và logistics)
+          6. Khác (Các mặt hàng khác)
+        - Không giải thích
+        - Cung cấp mô tả về nội dung chi tiêu của hóa đơn trong mục "description".
+        - Xác định và phân loại chính xác loại tiền tệ 
+        - Chuẩn hóa ngày sang định dạng ISO (YYYY-MM-DD).
+        - Trả về JSON với định dạng sau:
+        {
+          "storeName": "Tên cửa hàng",
+          "totalAmount": "Tổng số tiền",
+          "currency": "Loại tiền tệ",
+         "date": "Ngày mua (ISO format)",
+          "items": [
+            { "name": "Tên sản phẩm", "quantity": "Số lượng", "price": "Giá" }
+          ],
+          "category": {
+            "_id": "ID danh mục",
+            "name": "Tên danh mục",
+            "description": "Mô tả chi tiêu",
+            "icon": "Biểu tượng danh mục (emoji hoặc URL)"
+          }
+        }
 
-            Văn bản hóa đơn: "${extractedText}"
-        `;
-
-        const result = await model.generateContent([prompt]);
-        const response = await result.response;
-        let rawText = response.text().trim();
-        rawText = rawText.replace(/```json|```/g, '').trim();
+        Văn bản hóa đơn: "${extractedText}"
+    `;
+    const result = await model.generateContent([prompt]);
+    const response = await result.response;
+    let rawText = response.text().trim();
+    rawText = rawText.replace(/```json|```/g, '').trim();
+    
+    let parsedData;
+    try {
+        parsedData = JSON.parse(rawText);
+        print(parsedData);
+    } catch (jsonError) {
+        console.error("Lỗi JSON:", jsonError);
+        return res.status(500).json({ status: 'error', message: 'Lỗi xử lý JSON từ AI' });
         
-        let parsedData;
-        try {
-            parsedData = JSON.parse(rawText);
-        } catch (jsonError) {
-            console.error("Lỗi JSON:", jsonError);
-            return res.status(500).json({ status: 'error', message: 'Lỗi xử lý JSON từ AI' });
+    }
+
+    parsedData.date = moment(parsedData.date, moment.ISO_8601, true).isValid()
+    ? moment(parsedData.date).format('YYYY-MM-DD')
+    : moment().format('YYYY-MM-DD');
+
+    if (!parsedData.currency || parsedData.currency === "Không xác định"||parsedData.currency === "VNĐ") {
+        if (/\$/.test(extractedText)) {
+            parsedData.currency = "USD";
+        } else if (/€/.test(extractedText)) {
+            parsedData.currency = "EUR";
+        } else if (/¥/.test(extractedText)) {
+            parsedData.currency = "JPY";
+        } else if (/฿/.test(extractedText)) {
+            parsedData.currency = "THB";
         }
-
-        parsedData.date = moment(parsedData.date, moment.ISO_8601, true).isValid()
-        ? moment(parsedData.date).format('YYYY-MM-DD')
-        : moment().format('YYYY-MM-DD');
-
-        if (!parsedData.currency || parsedData.currency === "Không xác định"||parsedData.currency === "VNĐ") {
-            if (/\$/.test(extractedText)) {
-                parsedData.currency = "USD";
-            } else if (/€/.test(extractedText)) {
-                parsedData.currency = "EUR";
-            } else if (/¥/.test(extractedText)) {
-                parsedData.currency = "JPY";
-            } else {
-                parsedData.currency = "VND"; 
-            }
+        else {
+            parsedData.currency = "VND"; 
         }
+    }
+    if (!parsedData.totalAmount && parsedData.items?.length > 0) {
+        parsedData.totalAmount = parsedData.items.reduce((total, item) => {
+            const quantity = parseFloat(item.quantity) || 1;
+            const price = parseFloat(item.price) || 0;
+            return total + quantity * price;
+        }, 0).toFixed(2);
+    }
+    const matchedCategory = await Category.findOne({ name: parsedData.category.name });
 
-        // Tính tổng số tiền nếu totalAmount bị null
-        if (!parsedData.totalAmount && parsedData.items?.length > 0) {
-            parsedData.totalAmount = parsedData.items.reduce((total, item) => {
-                const quantity = parseFloat(item.quantity) || 1;
-                const price = parseFloat(item.price) || 0;
-                return total + quantity * price;
-            }, 0).toFixed(2);
-        }
-        const matchedCategory = await Category.findOne({ name: parsedData.category.name });
+    if (matchedCategory) {
+        parsedData.category = {
+            _id: matchedCategory._id,
+            name: matchedCategory.name,
+            description: matchedCategory.description,
+            icon: matchedCategory.icon
+        };
+    } else {
+        parsedData.category = {
+            _id: "678cf12ee729fb9da6737256",
+            name: "Khác",
+            description: "Các mặt hàng khác",
+            icon: "category"
+        };
+    }
+    const totalAmount = parsedData.totalAmount;
+    const description = `Chi tiêu tổng cộng ${totalAmount} ${parsedData.currency} các mặt hàng trong danh mục ${parsedData.category.name}.`;
+    parsedData.category.description = description;
 
-        if (matchedCategory) {
-            parsedData.category = {
-                _id: matchedCategory._id,
-                name: matchedCategory.name,
-                description: matchedCategory.description,
-                icon: matchedCategory.icon
-            };
-        } else {
-            parsedData.category = {
-                _id: "678cf12ee729fb9da6737256",
-                name: "Khác",
-                description: "Các mặt hàng khác",
-                icon: "category"
-            };
-        }
-        const totalAmount = parsedData.totalAmount;
-        const description = `Chi tiêu tổng cộng ${totalAmount} ${parsedData.currency} các mặt hàng trong danh mục ${parsedData.category.name}.`;
-        parsedData.category.description = description;
-
-        res.json({
-            status: 'success',
-            data: parsedData
-        });
-    } catch (error) {
+    res.json({
+        status: 'success',
+        data: parsedData
+    });
+    }
+    catch (error) {
         console.error("Lỗi hệ thống:", error);
         res.status(500).json({ status: 'error', message: error.message });
     }
