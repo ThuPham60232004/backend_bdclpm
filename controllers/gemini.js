@@ -81,10 +81,7 @@ export const processTextWithGemini = async (req, res) => {
             parsedData.currency = "VND";
         } else if (/SGD|S\$/.test(cleanedText)) { 
             parsedData.currency = "SGD";
-        }else if (/S\$|\$/.test(cleanedText)) { 
-            parsedData.currency = "SGD";
-        }
-        else if (/CNY|RMB|¥\d+/.test(cleanedText)) {  
+        }else if (/CNY|RMB|¥\d+/.test(cleanedText)) {  
             parsedData.currency = "CNY";
         }else if (/៛\d+/.test(cleanedText) || /KHR/.test(cleanedText)) {  
             parsedData.currency = "KHR"; 
