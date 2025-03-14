@@ -24,9 +24,9 @@ export const processTextWithGemini = async (req, res) => {
               4. Thời trang (Quần áo và phụ kiện thời trang) 👗
               5. Vận chuyển (Dịch vụ vận chuyển và logistics) 🚚
               6. Khác (Các mặt hàng khác) ❓
-            - Trả về JSON **duy nhất**, không kèm theo giải thích.
+              
             - Cung cấp mô tả về nội dung chi tiêu của hóa đơn trong mục "description".
-            - Xác định và phân loại chính xác loại tiền tệ (VD: tiền việt, tiền đô, tiền thái,...)ngoài raLoại tiền phải được xác định từ ký hiệu trong văn bản (VD: $, €, ¥, ₫). Nếu có nhiều loại tiền, chọn loại xuất hiện nhiều nhất.
+            - Xác định và phân loại chính xác loại tiền tệ (VD: VND, USD, EUR, ...).
             - Chuẩn hóa ngày sang định dạng ISO (YYYY-MM-DD).
             - Trả về JSON với định dạng sau:
             {
@@ -52,17 +52,10 @@ export const processTextWithGemini = async (req, res) => {
         const response = await result.response;
         let rawText = response.text().trim();
         rawText = rawText.replace(/```json|```/g, '').trim();
-        console.log("Raw JSON từ Gemini:", rawText);
-        const jsonMatch = rawText.match(/\{[\s\S]*\}$/);
-            if (!jsonMatch) {
-                return res.status(500).json({ status: 'error', message: 'Không tìm thấy JSON hợp lệ trong phản hồi từ AI' });
-            }
-
-            const jsonString = jsonMatch[0]; 
-            console.log("JSON hợp lệ từ Gemini:", jsonString);
+        
         let parsedData;
         try {
-            parsedData = JSON.parse(jsonString);
+            parsedData = JSON.parse(rawText);
         } catch (jsonError) {
             console.error("Lỗi JSON:", jsonError);
             return res.status(500).json({ status: 'error', message: 'Lỗi xử lý JSON từ AI' });
@@ -79,13 +72,12 @@ export const processTextWithGemini = async (req, res) => {
                 parsedData.currency = "EUR";
             } else if (/¥/.test(extractedText)) {
                 parsedData.currency = "JPY";
-            } else if (/฿/.test(extractedText)) { 
-                parsedData.currency = "THB";
-            } 
-            else {
+            } else {
                 parsedData.currency = "VND"; 
             }
         }
+
+        // Tính tổng số tiền nếu totalAmount bị null
         if (!parsedData.totalAmount && parsedData.items?.length > 0) {
             parsedData.totalAmount = parsedData.items.reduce((total, item) => {
                 const quantity = parseFloat(item.quantity) || 1;
