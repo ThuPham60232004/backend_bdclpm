@@ -119,6 +119,7 @@ export const processTextWithGemini = async (req, res) => {
             icon: "category"
         };
     }
+    console.log(currency)
     const totalAmount = parsedData.totalAmount;
     const description = `Chi tiêu tổng cộng ${totalAmount} ${parsedData.currency} các mặt hàng trong danh mục ${parsedData.category.name}.`;
     parsedData.category.description = description;
