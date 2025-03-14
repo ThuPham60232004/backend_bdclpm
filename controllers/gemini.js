@@ -12,10 +12,11 @@ const convertCurrency = async (amount, fromCurrency, toCurrency) => {
     const prompt = `
         Hãy chuyển đổi chính xác từ tiền ${amount} ${fromCurrency} sang tiền ${toCurrency} và chỉ trả về số tiền đã chuyển đổi mà không có văn bản giải thích.
     `;
-
+    
     try {
         const result = await model.generateContent([prompt]);
         const response = await result.response;
+        print(response);
         let convertedAmount = parseFloat(response.text().trim().replace(/[^\d.]/g, ''));
         return isNaN(convertedAmount) ? null : convertedAmount;
     } catch (error) {
