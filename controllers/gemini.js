@@ -69,16 +69,26 @@ export const processTextWithGemini = async (req, res) => {
     : moment().format('YYYY-MM-DD');
 
     if (!parsedData.currency || parsedData.currency === "Không xác định"||parsedData.currency === "VNĐ") {
-        if (/\$/.test(extractedText)) {
+        if (/\$\d+/.test(cleanedText)) {
             parsedData.currency = "USD";
-        } else if (/€/.test(extractedText)) {
+        } else if (/€\d+/.test(cleanedText)) {
             parsedData.currency = "EUR";
-        } else if (/¥/.test(extractedText)) {
+        } else if (/¥\d+/.test(cleanedText)) {
             parsedData.currency = "JPY";
-        } else if (/฿/.test(extractedText)) {
+        } else if (/฿\d+/.test(cleanedText)) {
             parsedData.currency = "THB";
-        }
-        else {
+        } else if (/₫\d+/.test(cleanedText)) {
+            parsedData.currency = "VND";
+        } else if (/SGD|S\$/.test(cleanedText)) { 
+            parsedData.currency = "SGD";
+        }else if (/CNY|RMB|¥\d+/.test(cleanedText)) {  
+            parsedData.currency = "CNY";
+        }else if (/៛\d+/.test(cleanedText) || /KHR/.test(cleanedText)) {  
+            parsedData.currency = "KHR"; 
+        }else if (/₭\d+/.test(cleanedText) || /LAK/.test(cleanedText)) {  
+            parsedData.currency = "LAK"; 
+        } 
+         else {
             parsedData.currency = "VND"; 
         }
     }
