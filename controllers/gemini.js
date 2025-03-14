@@ -24,9 +24,9 @@ export const processTextWithGemini = async (req, res) => {
               4. Thời trang (Quần áo và phụ kiện thời trang) 👗
               5. Vận chuyển (Dịch vụ vận chuyển và logistics) 🚚
               6. Khác (Các mặt hàng khác) ❓
-              
+            - Trả về JSON **duy nhất**, không kèm theo giải thích.
             - Cung cấp mô tả về nội dung chi tiêu của hóa đơn trong mục "description".
-            - Xác định và phân loại chính xác loại tiền tệ (VD: VND, USD, EUR, ...).
+            - Xác định và phân loại chính xác loại tiền tệ (VD: tiền việt, tiền đô, tiền thái,...)ngoài raLoại tiền phải được xác định từ ký hiệu trong văn bản (VD: $, €, ¥, ₫). Nếu có nhiều loại tiền, chọn loại xuất hiện nhiều nhất.
             - Chuẩn hóa ngày sang định dạng ISO (YYYY-MM-DD).
             - Trả về JSON với định dạng sau:
             {
