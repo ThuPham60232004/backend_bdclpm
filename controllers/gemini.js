@@ -10,7 +10,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const convertCurrency = async (amount, fromCurrency, toCurrency) => {
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-002" });
     const prompt = `
-        Hãy chuyển đổi số tiền ${amount} ${fromCurrency} sang ${toCurrency} và chỉ trả về số tiền đã chuyển đổi mà không có văn bản giải thích.
+        Hãy chuyển đổi chính xác từ tiền ${amount} ${fromCurrency} sang tiền ${toCurrency} và chỉ trả về số tiền đã chuyển đổi mà không có văn bản giải thích.
     `;
 
     try {
