@@ -56,7 +56,8 @@ export const processTextWithGemini = async (req, res) => {
     let parsedData;
     try {
         parsedData = JSON.parse(rawText);
-        print(parsedData);
+        console.log(parsedData);
+
     } catch (jsonError) {
         console.error("Lỗi JSON:", jsonError);
         return res.status(500).json({ status: 'error', message: 'Lỗi xử lý JSON từ AI' });
