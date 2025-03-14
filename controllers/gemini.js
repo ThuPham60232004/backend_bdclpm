@@ -69,23 +69,23 @@ export const processTextWithGemini = async (req, res) => {
     : moment().format('YYYY-MM-DD');
 
     if (!parsedData.currency || parsedData.currency === "Không xác định"||parsedData.currency === "VNĐ") {
-        if (/\$\d+/.test(cleanedText)) {
+        if (/\$\d+/.test(extractedText)) {
             parsedData.currency = "USD";
-        } else if (/€\d+/.test(cleanedText)) {
+        } else if (/€\d+/.test(extractedText)) {
             parsedData.currency = "EUR";
-        } else if (/¥\d+/.test(cleanedText)) {
+        } else if (/¥\d+/.test(extractedText)) {
             parsedData.currency = "JPY";
-        } else if (/฿\d+/.test(cleanedText)) {
+        } else if (/฿\d+/.test(extractedText)) {
             parsedData.currency = "THB";
-        } else if (/₫\d+/.test(cleanedText)) {
+        } else if (/₫\d+/.test(extractedText)) {
             parsedData.currency = "VND";
-        } else if (/SGD|S\$/.test(cleanedText)) { 
+        } else if (/SGD|S\$/.test(extractedText)) { 
             parsedData.currency = "SGD";
-        }else if (/CNY|RMB|¥\d+/.test(cleanedText)) {  
+        }else if (/CNY|RMB|¥\d+/.test(extractedText)) {  
             parsedData.currency = "CNY";
-        }else if (/៛\d+/.test(cleanedText) || /KHR/.test(cleanedText)) {  
+        }else if (/៛\d+/.test(extractedText) || /KHR/.test(extractedText)) {  
             parsedData.currency = "KHR"; 
-        }else if (/₭\d+/.test(cleanedText) || /LAK/.test(cleanedText)) {  
+        }else if (/₭\d+/.test(extractedText) || /LAK/.test(extractedText)) {  
             parsedData.currency = "LAK"; 
         } 
          else {
