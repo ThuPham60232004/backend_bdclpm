@@ -52,7 +52,7 @@ export const processTextWithGemini = async (req, res) => {
         const response = await result.response;
         let rawText = response.text().trim();
         rawText = rawText.replace(/```json|```/g, '').trim();
-        
+        console.log("Raw JSON từ Gemini:", rawText);
         let parsedData;
         try {
             parsedData = JSON.parse(rawText);
@@ -72,10 +72,10 @@ export const processTextWithGemini = async (req, res) => {
                 parsedData.currency = "EUR";
             } else if (/¥/.test(extractedText)) {
                 parsedData.currency = "JPY";
-            }else if (/฿/.test(extractedText)) { 
+            } else if (/฿/.test(extractedText)) { 
                 parsedData.currency = "THB";
             } 
-             else {
+            else {
                 parsedData.currency = "VND"; 
             }
         }
